@@ -38,6 +38,7 @@ model User {
   passwordHash String
   role         Role         @default(STAFF)
   phone        String?
+  lineUserId   String?      @unique // ผูกกับบัญชี LINE (ล็อกอินผ่าน LIFF)
   active       Boolean      @default(true)
   createdAt    DateTime     @default(now())
   assignments  Assignment[]
