@@ -1,0 +1,68 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-inspection}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-inspection}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5432:5432"
+
+  adminer:
+    image: adminer:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ADMINER_DEFAULT_SERVER: db
+      ADMINER_DESIGN: dracula
+    # ไม่เปิดพอร์ตออกนอก (โปรดักชัน) — เข้าถึงได้เฉพาะภายใน docker network
+    expose:
+      - "8080"
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/inspection?schema=public}
+      AUTH_SECRET: ${AUTH_SECRET:-change-this-to-a-long-random-secret-string}
+      # ไม่ตั้ง AUTH_URL — ให้ Auth.js อ่าน host จาก header ของ Cloudflare เอง (รองรับ tunnel/HTTPS)
+      AUTH_TRUST_HOST: "true"
+      UPLOAD_DIR: ${UPLOAD_DIR:-/app/uploads}
+      SEED_ADMIN_USERNAME: ${SEED_ADMIN_USERNAME:-admin}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-admin1234}
+      CHECKIN_MAX_ACCURACY_M: ${CHECKIN_MAX_ACCURACY_M:-50}
+      CHECKIN_SESSION_TTL_MIN: ${CHECKIN_SESSION_TTL_MIN:-5}
+      CHECKIN_MAX_GPS_AGE_SEC: ${CHECKIN_MAX_GPS_AGE_SEC:-120}
+      CHECKIN_SUSPICIOUS_ACCURACY_M: ${CHECKIN_SUSPICIOUS_ACCURACY_M:-5}
+      TZ: Asia/Bangkok
+      NODE_ENV: production
+    volumes:
+      - uploads_data:/app/uploads
+    ports:
+      - "3000:3000"
+
+  # Cloudflare Tunnel — เปิดแอปออกสู่อินเทอร์เน็ตผ่าน HTTPS
+  # ใน Cloudflare dashboard ตั้ง Public Hostname → Service = HTTP://app:3000
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - app
+
+volumes:
+  db_data:
+  uploads_data:

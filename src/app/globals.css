@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+}
+
+body {
+  @apply text-gray-900;
+  background: linear-gradient(180deg, #e5e7e5 0%, #e2e8f0 100%);
+  background-attachment: fixed;
+  min-height: 100vh;
+  font-family: var(--font-prompt), "Sarabun", "Noto Sans Thai", system-ui,
+    -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@layer components {
+  /* ---------- ปุ่ม ---------- */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 font-semibold leading-none
+      transition-all duration-150 active:scale-[0.97]
+      disabled:opacity-50 disabled:pointer-events-none
+      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand;
+  }
+  .btn-primary {
+    @apply btn bg-brand text-white shadow-sm hover:bg-brand-dark hover:shadow-md;
+  }
+  .btn-success {
+    @apply btn bg-green-600 text-white shadow-sm hover:bg-green-700 hover:shadow-md;
+  }
+  .btn-danger {
+    @apply btn bg-red-600 text-white shadow-sm hover:bg-red-700 hover:shadow-md;
+  }
+  .btn-ghost {
+    @apply btn bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 hover:border-gray-400;
+  }
+  /* ปุ่มขนาดใหญ่ เหมาะกับงานสำคัญบนมือถือ (กดง่าย นิ้วโป้งเอื้อมถึง) */
+  .btn-lg {
+    @apply px-5 py-3.5 text-base rounded-2xl;
+  }
+
+  /* ---------- การ์ด ---------- */
+  .card {
+    @apply bg-white rounded-2xl shadow-card border border-gray-100;
+  }
+  /* การ์ดที่กดได้ — มี hover ยกขึ้นเล็กน้อย */
+  .card-link {
+    @apply card transition-all duration-150 hover:shadow-card-hover hover:-translate-y-0.5 hover:border-brand-light;
+  }
+
+  /* ---------- ฟอร์ม ---------- */
+  .input {
+    @apply w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2.5 text-gray-900
+      outline-none transition
+      placeholder:text-gray-400
+      focus:border-brand focus:ring-2 focus:ring-brand/30;
+  }
+  .label {
+    @apply block text-sm font-semibold text-gray-700 mb-1.5;
+  }
+
+  /* ---------- ป้ายสถานะ ---------- */
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold;
+  }
+}

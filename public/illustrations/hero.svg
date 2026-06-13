@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 360" fill="none">
+  <defs>
+    <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#60a5fa"/>
+      <stop offset="1" stop-color="#2563eb"/>
+    </linearGradient>
+  </defs>
+  <!-- background blobs -->
+  <circle cx="120" cy="90" r="70" fill="#dbeafe"/>
+  <circle cx="380" cy="280" r="90" fill="#eff6ff"/>
+  <!-- phone -->
+  <rect x="150" y="60" width="180" height="250" rx="24" fill="#ffffff" stroke="#3b82f6" stroke-width="4"/>
+  <rect x="170" y="90" width="140" height="90" rx="10" fill="url(#g1)"/>
+  <!-- map pin on screen -->
+  <path d="M240 110c-14 0-25 11-25 25 0 18 25 36 25 36s25-18 25-36c0-14-11-25-25-25Z" fill="#ffffff"/>
+  <circle cx="240" cy="135" r="9" fill="#3b82f6"/>
+  <!-- checklist lines -->
+  <rect x="170" y="195" width="140" height="14" rx="7" fill="#dbeafe"/>
+  <rect x="170" y="218" width="110" height="14" rx="7" fill="#dbeafe"/>
+  <rect x="170" y="241" width="125" height="14" rx="7" fill="#dbeafe"/>
+  <!-- check badge -->
+  <circle cx="320" cy="250" r="34" fill="#3b82f6"/>
+  <path d="M306 250l9 9 18-20" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- QR mini -->
+  <rect x="120" y="210" width="64" height="64" rx="10" fill="#ffffff" stroke="#1d4ed8" stroke-width="3"/>
+  <rect x="132" y="222" width="16" height="16" fill="#1d4ed8"/>
+  <rect x="156" y="222" width="16" height="16" fill="#1d4ed8"/>
+  <rect x="132" y="246" width="16" height="16" fill="#1d4ed8"/>
+  <rect x="156" y="246" width="8" height="8" fill="#1d4ed8"/>
+</svg>

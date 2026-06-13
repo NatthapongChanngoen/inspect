@@ -1,0 +1,176 @@
+// ระบบตรวจสอบการทำงานแม่บ้าน/รปภ
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STAFF // พนักงาน (แม่บ้าน/รปภ)
+  INSPECTOR // ผู้ตรวจสอบ
+  ADMIN // ผู้ดูแลระบบ
+}
+
+enum WorkStatus {
+  IN_PROGRESS // เช็คอินแล้ว กำลังทำงาน
+  SUBMITTED // ส่งงานแล้ว รอตรวจ
+  APPROVED // ตรวจผ่าน
+  REJECTED // ตรวจไม่ผ่าน
+}
+
+enum ReviewResult {
+  PASS
+  FAIL
+}
+
+enum ReviewMode {
+  REMOTE // อนุมัติจากการดูรูประยะไกล
+  ON_SITE // ผู้ตรวจไปที่จุดจริง (สแกน QR + GPS + ถ่ายรูป)
+}
+
+model User {
+  id           String       @id @default(cuid())
+  name         String
+  username     String       @unique
+  passwordHash String
+  role         Role         @default(STAFF)
+  phone        String?
+  active       Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  assignments  Assignment[]
+  schedules    Schedule[]
+  workRecords  WorkRecord[]
+  reviews      Review[]     @relation("InspectorReviews")
+}
+
+model Site {
+  id          String       @id @default(cuid())
+  name        String
+  address     String?
+  active      Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  checkpoints Checkpoint[]
+}
+
+model Checkpoint {
+  id           String       @id @default(cuid())
+  siteId       String
+  site         Site         @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  name         String
+  // โทเค็นที่ฝังใน QR Code (ลับ + ไม่ซ้ำ) ใช้ยืนยันว่าสแกนถูกจุด
+  qrToken      String       @unique @default(cuid())
+  latitude     Float
+  longitude    Float
+  radiusMeters Int          @default(50)
+  description  String?
+  active       Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  assignments  Assignment[]
+  schedules    Schedule[]
+  workRecords  WorkRecord[]
+}
+
+// งานประจำ: ทำซ้ำตามวันของสัปดาห์ (คลี่เป็นงานวันนี้ตอนรันไทม์)
+model Schedule {
+  id           String     @id @default(cuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  checkpointId String
+  checkpoint   Checkpoint @relation(fields: [checkpointId], references: [id], onDelete: Cascade)
+  daysOfWeek   Int[] // 0=อาทิตย์ .. 6=เสาร์ (วันที่ต้องทำ)
+  note         String?
+  active       Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+
+  @@index([userId])
+}
+
+// มอบหมายงาน: ใครต้องทำจุดไหน วันไหน
+model Assignment {
+  id            String       @id @default(cuid())
+  userId        String
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  checkpointId  String
+  checkpoint    Checkpoint   @relation(fields: [checkpointId], references: [id], onDelete: Cascade)
+  scheduledDate DateTime // วันที่ต้องทำ (เก็บเป็นเที่ยงคืนของวันนั้น)
+  note          String?
+  createdAt     DateTime     @default(now())
+  workRecords   WorkRecord[]
+
+  @@index([userId, scheduledDate])
+}
+
+// บันทึกการทำงาน (แกนหลักของระบบ)
+model WorkRecord {
+  id              String      @id @default(cuid())
+  checkpointId    String
+  checkpoint      Checkpoint  @relation(fields: [checkpointId], references: [id])
+  userId          String
+  user            User        @relation(fields: [userId], references: [id])
+  assignmentId    String?
+  assignment      Assignment? @relation(fields: [assignmentId], references: [id])
+  status          WorkStatus  @default(IN_PROGRESS)
+  checkInAt       DateTime    @default(now())
+  checkInLat      Float?
+  checkInLng      Float?
+  checkInAccuracy Float? // ความแม่นยำ GPS (เมตร) ณ ตอนเช็คอิน
+  distanceMeters  Float? // ระยะห่างจากจุดจริง ณ ตอนเช็คอิน
+  // หลักฐาน GPS ดิบ ไว้ตรวจย้อนหลัง (กัน fake GPS)
+  gpsTimestamp    DateTime? // เวลาที่อุปกรณ์อ่านพิกัด (จาก Geolocation API)
+  gpsAltitude     Float? // ความสูง (เมตร) — fake GPS มักเป็น null
+  gpsSpeed        Float? // ความเร็ว (m/s) — fake GPS มักเป็น null/0
+  gpsHeading      Float? // ทิศทาง — fake GPS มักเป็น null
+  ipAddress       String? // IP ของ request ตอนเช็คอิน
+  userAgent       String? // เบราว์เซอร์/อุปกรณ์
+  // ธงน่าสงสัย — ไม่บล็อก แต่เตือนผู้ตรวจให้ดูย้อนหลัง
+  suspicious      Boolean     @default(false)
+  suspiciousFlags String[]    @default([]) // เหตุผลที่ตั้งธง
+  verifiedByQr    Boolean     @default(false)
+  verifiedByGps   Boolean     @default(false)
+  beforePhotoPath String?
+  afterPhotoPath  String?
+  submittedAt     DateTime?
+  note            String?
+  createdAt       DateTime    @default(now())
+  review          Review?
+
+  @@index([status])
+  @@index([userId])
+  @@index([checkpointId])
+}
+
+// ผลการตรวจของผู้ตรวจสอบ
+model Review {
+  id                      String       @id @default(cuid())
+  workRecordId            String       @unique
+  workRecord              WorkRecord   @relation(fields: [workRecordId], references: [id], onDelete: Cascade)
+  inspectorId             String
+  inspector               User         @relation("InspectorReviews", fields: [inspectorId], references: [id])
+  result                  ReviewResult
+  comment                 String?
+  mode                    ReviewMode   @default(REMOTE)
+  // กรณีไปตรวจที่จุดจริง (ON_SITE)
+  inspectorLat            Float?
+  inspectorLng            Float?
+  inspectorDistanceMeters Float?
+  inspectorPhotoPath      String?
+  reviewedAt              DateTime     @default(now())
+}
+
+// รหัสเซสชันใช้ครั้งเดียว อายุสั้น — กันการยิง request เช็คอิน/ตรวจซ้ำ (anti-replay)
+model CheckInSession {
+  id           String    @id @default(cuid())
+  nonce        String    @unique @default(cuid())
+  checkpointId String
+  userId       String
+  purpose      String    @default("CHECKIN") // CHECKIN | REVIEW
+  createdAt    DateTime  @default(now())
+  expiresAt    DateTime
+  usedAt       DateTime?
+
+  @@index([userId, checkpointId])
+  @@index([expiresAt])
+}
