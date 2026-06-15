@@ -3,6 +3,7 @@ const map: Record<string, { label: string; cls: string; dot: string }> = {
   SUBMITTED: { label: "รอตรวจ", cls: "bg-blue-100 text-blue-800", dot: "bg-blue-500" },
   APPROVED: { label: "ผ่าน", cls: "bg-green-100 text-green-800", dot: "bg-green-500" },
   REJECTED: { label: "ไม่ผ่าน", cls: "bg-red-100 text-red-800", dot: "bg-red-500" },
+  MISSED: { label: "ไม่ได้ปฏิบัติงาน", cls: "bg-gray-200 text-gray-700", dot: "bg-gray-500" },
 };
 
 export default function StatusBadge({ status }: { status: string }) {

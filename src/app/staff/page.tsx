@@ -40,11 +40,12 @@ export default async function StaffHome() {
     }),
   ]);
 
-  // รวมเป็นรายการงานวันนี้ (ไม่ซ้ำจุด) — งานรายวันมาก่อน (หมายเหตุชนะ)
+  // รวมเป็นรายการงานวันนี้ (ไม่ซ้ำจุด) — งานรายวันมาก่อน (หมายเหตุ/เวลาชนะ)
   type Task = {
     id: string;
     checkpointId: string;
     checkpoint: (typeof oneOff)[number]["checkpoint"];
+    startTime: string | null;
     note: string | null;
   };
   const taskMap = new Map<string, Task>();
@@ -53,6 +54,7 @@ export default async function StaffHome() {
       id: a.checkpointId,
       checkpointId: a.checkpointId,
       checkpoint: a.checkpoint,
+      startTime: a.startTime,
       note: a.note,
     });
   }
@@ -62,11 +64,18 @@ export default async function StaffHome() {
         id: s.checkpointId,
         checkpointId: s.checkpointId,
         checkpoint: s.checkpoint,
+        startTime: s.startTime,
         note: s.note,
       });
     }
   }
-  const tasks = [...taskMap.values()];
+  // เรียงตามเวลาเริ่ม (ไม่มีเวลา = ไว้ท้าย)
+  const tasks = [...taskMap.values()].sort((a, b) => {
+    if (a.startTime && b.startTime) return a.startTime.localeCompare(b.startTime);
+    if (a.startTime) return -1;
+    if (b.startTime) return 1;
+    return 0;
+  });
 
   // checkpointId -> งานล่าสุดของวันนี้
   const recByCheckpoint = new Map<string, (typeof records)[number]>();
@@ -105,6 +114,12 @@ export default async function StaffHome() {
                     <MapPinIcon size={14} className="shrink-0 text-gray-400" />
                     <span className="truncate">{a.checkpoint.site.name}</span>
                   </div>
+                  {a.startTime && (
+                    <div className="inline-flex items-center gap-1 text-xs font-medium text-brand-dark bg-brand/10 rounded-full px-2 py-0.5 mt-1.5">
+                      <CalendarIcon size={12} />
+                      เริ่ม {a.startTime} น.
+                    </div>
+                  )}
                   {a.note && (
                     <div className="text-sm text-gray-600 mt-2 bg-amber-50 rounded-lg px-2.5 py-1.5">
                       📌 {a.note}

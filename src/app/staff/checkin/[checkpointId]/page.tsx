@@ -18,6 +18,8 @@ export default async function CheckinPage({
 
   if (!checkpoint || !checkpoint.active) notFound();
 
+  const liffId = process.env.LIFF_ID || "";
+
   return (
     <div className="space-y-4">
       <Link href="/staff" className="text-sm text-gray-500">
@@ -31,7 +33,7 @@ export default async function CheckinPage({
         )}
       </div>
 
-      <CheckinForm checkpointId={checkpoint.id} />
+      <CheckinForm checkpointId={checkpoint.id} liffId={liffId} />
     </div>
   );
 }

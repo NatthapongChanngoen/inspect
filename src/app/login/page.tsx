@@ -37,13 +37,6 @@ export default function LoginPage() {
         <Suspense fallback={<div className="text-center text-gray-400">กำลังโหลด…</div>}>
           <LoginForm />
         </Suspense>
-
-        <p className="text-center text-sm text-gray-500 mt-6">
-          ยังไม่มีบัญชี?{" "}
-          <Link href="/register" className="text-brand-dark font-semibold">
-            สมัครสมาชิก
-          </Link>
-        </p>
       </div>
     </div>
   );

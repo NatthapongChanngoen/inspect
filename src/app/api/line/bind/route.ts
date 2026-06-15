@@ -1,17 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { verifyLineIdToken } from "@/lib/line";
 
-// ผูกบัญชี LINE เข้ากับผู้ใช้ในระบบครั้งแรก (ยืนยันด้วย username/password เดิม)
+// ผูกบัญชี LINE เข้ากับผู้ใช้ในระบบครั้งแรก
+// ยืนยันตัวตนด้วย "ชื่อ + เลขบัตรประชาชน" (ตามที่ผู้ดูแลกรอกไว้ตอนเพิ่มผู้ใช้)
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const idToken = String(body?.idToken || "");
-  const username = String(body?.username || "").trim();
-  const password = String(body?.password || "");
+  const name = String(body?.name || "").trim();
+  const nationalId = String(body?.nationalId || "").replace(/\D/g, ""); // เอาเฉพาะตัวเลข
 
-  if (!idToken || !username || !password) {
+  if (!idToken || !name || !nationalId) {
     return NextResponse.json({ error: "ข้อมูลไม่ครบ" }, { status: 400 });
+  }
+  if (nationalId.length !== 13) {
+    return NextResponse.json(
+      { error: "เลขบัตรประชาชนต้องมี 13 หลัก" },
+      { status: 400 }
+    );
   }
 
   const profile = await verifyLineIdToken(idToken);
@@ -22,17 +28,18 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const user = await prisma.user.findUnique({ where: { username } });
+  // หาผู้ใช้จากเลขบัตรประชาชน
+  const user = await prisma.user.findUnique({ where: { nationalId } });
   if (!user || !user.active) {
     return NextResponse.json(
-      { error: "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง" },
+      { error: "ไม่พบผู้ใช้ที่ตรงกับชื่อและเลขบัตรประชาชนนี้" },
       { status: 401 }
     );
   }
-  const ok = await bcrypt.compare(password, user.passwordHash);
-  if (!ok) {
+  // ตรวจชื่อให้ตรง (ตัดช่องว่าง ไม่สนตัวพิมพ์)
+  if (user.name.trim().toLowerCase() !== name.toLowerCase()) {
     return NextResponse.json(
-      { error: "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง" },
+      { error: "ไม่พบผู้ใช้ที่ตรงกับชื่อและเลขบัตรประชาชนนี้" },
       { status: 401 }
     );
   }

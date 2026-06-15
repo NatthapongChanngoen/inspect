@@ -92,6 +92,10 @@ export default async function AssignmentsPage() {
                 </select>
               </div>
               <div>
+                <label className="label">เวลาเริ่ม</label>
+                <input name="startTime" type="time" className="input" />
+              </div>
+              <div>
                 <label className="label">หมายเหตุ</label>
                 <input name="note" className="input" />
               </div>
@@ -132,6 +136,7 @@ export default async function AssignmentsPage() {
                     <span className="font-medium text-brand-dark">
                       {fmtDaysOfWeek(s.daysOfWeek)}
                     </span>
+                    {s.startTime ? ` · ${s.startTime} น.` : ""}
                     {s.note ? ` · ${s.note}` : ""}
                   </div>
                 </div>
@@ -186,6 +191,10 @@ export default async function AssignmentsPage() {
                 />
               </div>
               <div>
+                <label className="label">เวลาเริ่ม</label>
+                <input name="startTime" type="time" className="input" />
+              </div>
+              <div>
                 <label className="label">หมายเหตุ</label>
                 <input name="note" className="input" />
               </div>
@@ -207,6 +216,7 @@ export default async function AssignmentsPage() {
                   </div>
                   <div className="text-sm text-gray-500">
                     {a.checkpoint.site.name} · {fmtDate(a.scheduledDate)}
+                    {a.startTime ? ` · ${a.startTime} น.` : ""}
                     {a.note ? ` · ${a.note}` : ""}
                   </div>
                 </div>

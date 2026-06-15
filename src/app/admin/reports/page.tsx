@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { fmtDateTime, fmtDuration } from "@/lib/date";
 import StatusBadge from "@/components/StatusBadge";
@@ -115,6 +116,7 @@ export default async function ReportsPage({
                 <th className="p-3 font-medium whitespace-nowrap">ส่งงาน</th>
                 <th className="p-3 font-medium whitespace-nowrap">เวลาที่ใช้</th>
                 <th className="p-3 font-medium">ผล</th>
+                <th className="p-3 font-medium text-right">รายละเอียด</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -140,6 +142,14 @@ export default async function ReportsPage({
                   </td>
                   <td className="p-3">
                     <StatusBadge status={r.status} />
+                  </td>
+                  <td className="p-3 text-right whitespace-nowrap">
+                    <Link
+                      href={`/inspector/${r.id}?from=reports`}
+                      className="text-brand-dark font-medium hover:underline"
+                    >
+                      ดูรายละเอียด →
+                    </Link>
                   </td>
                 </tr>
               ))}

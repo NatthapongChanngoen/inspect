@@ -15,16 +15,23 @@ async function upsertUser(opts: {
   password: string;
   role: Role;
   phone?: string;
+  nationalId?: string;
 }) {
   const passwordHash = await bcrypt.hash(opts.password, 10);
   return prisma.user.upsert({
     where: { username: opts.username },
-    update: { name: opts.name, role: opts.role, phone: opts.phone },
+    update: {
+      name: opts.name,
+      role: opts.role,
+      phone: opts.phone,
+      nationalId: opts.nationalId,
+    },
     create: {
       username: opts.username,
       name: opts.name,
       role: opts.role,
       phone: opts.phone,
+      nationalId: opts.nationalId,
       passwordHash,
     },
   });
@@ -48,6 +55,7 @@ async function main() {
     password: "inspect1234",
     role: Role.INSPECTOR,
     phone: "0810000001",
+    nationalId: "1100000000011",
   });
 
   const maid = await upsertUser({
@@ -56,6 +64,7 @@ async function main() {
     password: "staff1234",
     role: Role.STAFF,
     phone: "0820000001",
+    nationalId: "1100000000029",
   });
 
   const guard = await upsertUser({
@@ -64,6 +73,7 @@ async function main() {
     password: "staff1234",
     role: Role.STAFF,
     phone: "0830000001",
+    nationalId: "1100000000037",
   });
 
   // ---- สถานที่ตัวอย่าง ----

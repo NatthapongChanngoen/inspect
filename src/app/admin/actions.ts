@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { currentUser } from "@/lib/session";
+import { fmtDate } from "@/lib/date";
+import { pushMessage, buildAssignmentMessage } from "@/lib/lineMessaging";
 import type { Role } from "@prisma/client";
 
 async function assertAdmin() {
@@ -14,21 +16,55 @@ async function assertAdmin() {
 }
 
 // ---------- ผู้ใช้ ----------
-export async function createUser(formData: FormData) {
+type ActionResult = { ok: boolean; error?: string };
+
+export async function createUser(formData: FormData): Promise<ActionResult> {
   await assertAdmin();
   const name = String(formData.get("name") || "").trim();
   const username = String(formData.get("username") || "").trim();
   const password = String(formData.get("password") || "");
   const role = String(formData.get("role") || "STAFF") as Role;
   const phone = String(formData.get("phone") || "").trim() || null;
+  const nationalId =
+    String(formData.get("nationalId") || "").replace(/\D/g, "") || null;
 
-  if (!name || !username || !password) return;
+  if (!name || !username || !password)
+    return { ok: false, error: "กรุณากรอกชื่อ ชื่อผู้ใช้ และรหัสผ่าน" };
+  // เลขบัตรประชาชน (ถ้ากรอก) ต้อง 13 หลัก
+  if (nationalId && nationalId.length !== 13)
+    return { ok: false, error: "เลขบัตรประชาชนต้องมี 13 หลัก" };
+
+  // กันชื่อผู้ใช้/เลขบัตรซ้ำ
+  const dup = await prisma.user.findFirst({
+    where: {
+      OR: [{ username }, ...(nationalId ? [{ nationalId }] : [])],
+    },
+    select: { username: true, nationalId: true },
+  });
+  if (dup) {
+    return {
+      ok: false,
+      error:
+        dup.username === username
+          ? "ชื่อผู้ใช้นี้ถูกใช้แล้ว"
+          : "เลขบัตรประชาชนนี้ถูกใช้แล้ว",
+    };
+  }
 
   const passwordHash = await bcrypt.hash(password, 10);
   await prisma.user.create({
-    data: { name, username, role, phone, passwordHash },
+    data: { name, username, role, phone, nationalId, passwordHash },
   });
   revalidatePath("/admin/users");
+  return { ok: true };
+}
+
+// สำหรับ useActionState ในฟอร์ม Pop-up เพิ่มผู้ใช้
+export async function createUserState(
+  _prev: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
+  return createUser(formData);
 }
 
 export async function toggleUserActive(formData: FormData) {
@@ -236,6 +272,7 @@ export async function createAssignment(formData: FormData) {
   const userId = String(formData.get("userId") || "");
   const checkpointId = String(formData.get("checkpointId") || "");
   const dateStr = String(formData.get("scheduledDate") || "");
+  const startTime = String(formData.get("startTime") || "").trim() || null;
   const note = String(formData.get("note") || "").trim() || null;
 
   if (!userId || !checkpointId || !dateStr) return;
@@ -243,9 +280,45 @@ export async function createAssignment(formData: FormData) {
   if (Number.isNaN(scheduledDate.getTime())) return;
 
   await prisma.assignment.create({
-    data: { userId, checkpointId, scheduledDate, note },
+    data: { userId, checkpointId, scheduledDate, startTime, note },
   });
+
+  // แจ้งเตือนเข้า LINE OA (ถ้าพนักงานผูก LINE แล้ว + ตั้ง token)
+  await notifyAssignment({ userId, checkpointId, scheduledDate, startTime, note });
+
   revalidatePath("/admin/assignments");
+}
+
+// ส่งข้อความแจ้งงานใหม่เข้า LINE ให้พนักงาน (เงียบถ้าไม่มี token/ไม่ผูก LINE)
+async function notifyAssignment(opts: {
+  userId: string;
+  checkpointId: string;
+  scheduledDate: Date;
+  startTime: string | null;
+  note: string | null;
+}) {
+  try {
+    const [user, checkpoint] = await Promise.all([
+      prisma.user.findUnique({ where: { id: opts.userId } }),
+      prisma.checkpoint.findUnique({
+        where: { id: opts.checkpointId },
+        include: { site: true },
+      }),
+    ]);
+    if (!user?.lineUserId || !checkpoint) return;
+
+    const msg = buildAssignmentMessage({
+      staffName: user.name,
+      checkpointName: checkpoint.name,
+      siteName: checkpoint.site.name,
+      dateStr: fmtDate(opts.scheduledDate),
+      timeStr: opts.startTime,
+      note: opts.note,
+    });
+    await pushMessage(user.lineUserId, [msg]);
+  } catch (e) {
+    console.error("[line] notifyAssignment:", e);
+  }
 }
 
 export async function deleteAssignment(formData: FormData) {
@@ -274,6 +347,7 @@ export async function createSchedule(formData: FormData) {
   const userId = String(formData.get("userId") || "");
   const checkpointId = String(formData.get("checkpointId") || "");
   const preset = String(formData.get("preset") || "weekdays");
+  const startTime = String(formData.get("startTime") || "").trim() || null;
   const note = String(formData.get("note") || "").trim() || null;
   const custom = formData
     .getAll("dow")
@@ -284,7 +358,7 @@ export async function createSchedule(formData: FormData) {
   if (!userId || !checkpointId || daysOfWeek.length === 0) return;
 
   await prisma.schedule.create({
-    data: { userId, checkpointId, daysOfWeek, note },
+    data: { userId, checkpointId, daysOfWeek, startTime, note },
   });
   revalidatePath("/admin/assignments");
 }

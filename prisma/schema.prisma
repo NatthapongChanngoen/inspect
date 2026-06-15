@@ -19,6 +19,7 @@ enum WorkStatus {
   SUBMITTED // ส่งงานแล้ว รอตรวจ
   APPROVED // ตรวจผ่าน
   REJECTED // ตรวจไม่ผ่าน
+  MISSED // ไม่ได้ปฏิบัติงาน (ตัดรอบเที่ยงคืนแล้วยังไม่ได้ส่งงาน)
 }
 
 enum ReviewResult {
@@ -38,6 +39,7 @@ model User {
   passwordHash String
   role         Role         @default(STAFF)
   phone        String?
+  nationalId   String?      @unique // เลขบัตรประชาชน 13 หลัก (ใช้ยืนยันตัวตอนผูก LINE)
   lineUserId   String?      @unique // ผูกกับบัญชี LINE (ล็อกอินผ่าน LIFF)
   active       Boolean      @default(true)
   createdAt    DateTime     @default(now())
@@ -82,6 +84,7 @@ model Schedule {
   checkpointId String
   checkpoint   Checkpoint @relation(fields: [checkpointId], references: [id], onDelete: Cascade)
   daysOfWeek   Int[] // 0=อาทิตย์ .. 6=เสาร์ (วันที่ต้องทำ)
+  startTime    String? // เวลาเริ่มงาน "HH:mm"
   note         String?
   active       Boolean    @default(true)
   createdAt    DateTime   @default(now())
@@ -97,6 +100,7 @@ model Assignment {
   checkpointId  String
   checkpoint    Checkpoint   @relation(fields: [checkpointId], references: [id], onDelete: Cascade)
   scheduledDate DateTime // วันที่ต้องทำ (เก็บเป็นเที่ยงคืนของวันนั้น)
+  startTime     String? // เวลาเริ่มงาน "HH:mm" (เช่น "08:00")
   note          String?
   createdAt     DateTime     @default(now())
   workRecords   WorkRecord[]

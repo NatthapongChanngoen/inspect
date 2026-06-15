@@ -9,8 +9,8 @@ export default function LineLogin({ liffId }: { liffId: string }) {
   const [status, setStatus] = useState<Status>(liffId ? "loading" : "config");
   const [error, setError] = useState("");
   const [idToken, setIdToken] = useState("");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [nationalId, setNationalId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const started = useRef(false);
 
@@ -58,7 +58,7 @@ export default function LineLogin({ liffId }: { liffId: string }) {
       const res = await fetch("/api/line/bind", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken, username, password }),
+        body: JSON.stringify({ idToken, name, nationalId }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -101,25 +101,29 @@ export default function LineLogin({ liffId }: { liffId: string }) {
   return (
     <form onSubmit={bind} className="space-y-4">
       <p className="text-sm text-gray-600 text-center">
-        เชื่อมบัญชี LINE กับพนักงานครั้งแรก — กรอกชื่อผู้ใช้/รหัสผ่านของระบบ
+        ยืนยันตัวตนครั้งแรก — กรอกชื่อ-นามสกุล และเลขบัตรประชาชนของคุณ
       </p>
       <div>
-        <label className="label">ชื่อผู้ใช้</label>
+        <label className="label">ชื่อ-นามสกุล</label>
         <input
           className="input"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          autoCapitalize="none"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="เช่น มาลี แม่บ้าน"
           required
         />
       </div>
       <div>
-        <label className="label">รหัสผ่าน</label>
+        <label className="label">เลขบัตรประชาชน (13 หลัก)</label>
         <input
           className="input"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          value={nationalId}
+          onChange={(e) =>
+            setNationalId(e.target.value.replace(/\D/g, "").slice(0, 13))
+          }
+          inputMode="numeric"
+          autoComplete="off"
+          placeholder="x xxxx xxxxx xx x"
           required
         />
       </div>
@@ -127,7 +131,7 @@ export default function LineLogin({ liffId }: { liffId: string }) {
         <p className="text-sm text-red-600 bg-red-50 rounded-lg p-2.5">{error}</p>
       )}
       <button type="submit" className="btn-primary w-full" disabled={submitting}>
-        {submitting ? "กำลังเชื่อมบัญชี…" : "เชื่อมบัญชีและเข้าสู่ระบบ"}
+        {submitting ? "กำลังยืนยันตัวตน…" : "ยืนยันตัวตนและเข้าสู่ระบบ"}
       </button>
     </form>
   );

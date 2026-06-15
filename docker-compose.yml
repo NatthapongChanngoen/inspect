@@ -49,6 +49,7 @@ services:
       CHECKIN_SUSPICIOUS_ACCURACY_M: ${CHECKIN_SUSPICIOUS_ACCURACY_M:-5}
       LIFF_ID: ${LIFF_ID:-}
       LINE_LOGIN_CHANNEL_ID: ${LINE_LOGIN_CHANNEL_ID:-}
+      LINE_MESSAGING_TOKEN: ${LINE_MESSAGING_TOKEN:-}
       TZ: Asia/Bangkok
       NODE_ENV: production
     volumes:

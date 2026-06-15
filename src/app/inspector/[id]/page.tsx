@@ -9,10 +9,17 @@ export const dynamic = "force-dynamic";
 
 export default async function ReviewDetail({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string }>;
 }) {
   const { id } = await params;
+  const { from } = await searchParams;
+  const back =
+    from === "reports"
+      ? { href: "/admin/reports", label: "กลับรายงานเวลาทำงาน" }
+      : { href: "/inspector", label: "กลับคิวตรวจ" };
   const record = await prisma.workRecord.findUnique({
     where: { id },
     include: {
@@ -30,8 +37,8 @@ export default async function ReviewDetail({
 
   return (
     <div className="space-y-4">
-      <Link href="/inspector" className="text-sm text-gray-500">
-        ← กลับคิวตรวจ
+      <Link href={back.href} className="text-sm text-gray-500">
+        ← {back.label}
       </Link>
 
       <div className="flex items-start justify-between">

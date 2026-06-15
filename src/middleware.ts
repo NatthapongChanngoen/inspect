@@ -17,18 +17,16 @@ export default auth((req) => {
   // ปล่อยผ่านเส้นทางของ Auth.js เอง
   if (path.startsWith("/api/auth")) return NextResponse.next();
 
-  // ปล่อยผ่าน API สมัครสมาชิก + ผูกบัญชี LINE (สาธารณะ)
-  if (path.startsWith("/api/register")) return NextResponse.next();
+  // ปล่อยผ่าน API ผูกบัญชี LINE (สาธารณะ)
   if (path.startsWith("/api/line")) return NextResponse.next();
 
   const isLoggedIn = !!req.auth;
   const role = req.auth?.user?.role as string | undefined;
   const isLogin = path === "/login";
-  const isRegister = path === "/register";
   const isLanding = path === "/";
   const isLine = path === "/line";
-  // หน้าสาธารณะ: landing / login / สมัครสมาชิก / เข้าผ่าน LINE
-  const isPublic = isLogin || isRegister || isLanding || isLine;
+  // หน้าสาธารณะ: landing / login / เข้าผ่าน LINE
+  const isPublic = isLogin || isLanding || isLine;
 
   if (!isLoggedIn) {
     if (isPublic) return NextResponse.next();
