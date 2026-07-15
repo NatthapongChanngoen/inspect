@@ -1,15 +1,9 @@
 import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
 import { authConfig } from "@/auth.config";
+import { canAccessAdminPath, homeFor } from "@/lib/permissions";
 
 const { auth } = NextAuth(authConfig);
-
-function homeFor(role?: string): string {
-  if (role === "ADMIN") return "/admin";
-  if (role === "EXECUTIVE") return "/admin/executive";
-  if (role === "INSPECTOR") return "/inspector";
-  return "/staff";
-}
 
 export default auth((req) => {
   const { nextUrl } = req;
@@ -52,17 +46,10 @@ export default auth((req) => {
     return NextResponse.redirect(new URL(homeFor(role), nextUrl));
   }
 
-  // ควบคุมสิทธิ์ตามบทบาท
-  if (path.startsWith("/admin") && role !== "ADMIN") {
-    // ผู้บริหารเข้าได้เฉพาะรายงานผู้บริหาร + รายงานเวลา
-    const execAllowed =
-      role === "EXECUTIVE" &&
-      (path.startsWith("/admin/executive") ||
-        path.startsWith("/admin/reports") ||
-        path.startsWith("/admin/repairs"));
-    if (!execAllowed) {
-      return NextResponse.redirect(new URL(homeFor(role), nextUrl));
-    }
+  // ควบคุมสิทธิ์ตามบทบาท — allowlist อยู่ที่ src/lib/permissions.ts ที่เดียว
+  // (ผู้บริหาร = รายงาน · ผู้สั่งงาน = สถานที่/จุด/มอบหมายงาน · แอดมิน = ทุกหน้า)
+  if (path.startsWith("/admin") && !canAccessAdminPath(role, path)) {
+    return NextResponse.redirect(new URL(homeFor(role), nextUrl));
   }
   if (path.startsWith("/inspector") && !(role === "INSPECTOR" || role === "ADMIN")) {
     return NextResponse.redirect(new URL(homeFor(role), nextUrl));

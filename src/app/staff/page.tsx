@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { currentUser } from "@/lib/session";
 import { todayRange, fmtDate } from "@/lib/date";
 import StatusBadge from "@/components/StatusBadge";
+import ImageThumb from "@/components/ImageThumb";
 import {
   MapPinIcon,
   CameraIcon,
@@ -116,31 +117,43 @@ export default async function StaffHome() {
           return (
             <div key={a.id} className="card p-4 flex flex-col">
               <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="font-semibold text-gray-900 truncate">{a.checkpoint.name}</div>
-                  <div className="flex items-center gap-1 text-sm text-gray-500 mt-0.5">
-                    <MapPinIcon size={14} className="shrink-0 text-gray-400" />
-                    <span className="truncate">
-                      {a.checkpoint.department
-                        ? `${a.checkpoint.department.name} · `
-                        : ""}
-                      {a.checkpoint.site.name}
-                    </span>
+                <div className="flex items-start gap-2.5 min-w-0">
+                  {/* รูปประจำจุด (รูปแรก) — จุดที่ยังไม่มีรูปจะไม่แสดงอะไร */}
+                  {a.checkpoint.photoPaths.length > 0 && (
+                    <ImageThumb
+                      src={`/api/files/${a.checkpoint.photoPaths[0]}`}
+                      alt={`รูปจุด ${a.checkpoint.name}`}
+                      thumbClassName="h-16 w-16 shrink-0 rounded-lg border object-cover bg-gray-50 cursor-zoom-in hover:opacity-90 transition"
+                    />
+                  )}
+                  <div className="min-w-0">
+                    <div className="font-semibold text-gray-900 truncate">{a.checkpoint.name}</div>
+                    <div className="flex items-center gap-1 text-sm text-gray-500 mt-0.5">
+                      <MapPinIcon size={14} className="shrink-0 text-gray-400" />
+                      <span className="truncate">
+                        {a.checkpoint.department
+                          ? `${a.checkpoint.department.name} · `
+                          : ""}
+                        {a.checkpoint.site.name}
+                      </span>
+                    </div>
+                    {a.startTime && (
+                      <div className="inline-flex items-center gap-1 text-xs font-medium text-brand-dark bg-brand/10 rounded-full px-2 py-0.5 mt-1.5">
+                        <CalendarIcon size={12} />
+                        เริ่ม {a.startTime} น.
+                      </div>
+                    )}
                   </div>
-                  {a.startTime && (
-                    <div className="inline-flex items-center gap-1 text-xs font-medium text-brand-dark bg-brand/10 rounded-full px-2 py-0.5 mt-1.5">
-                      <CalendarIcon size={12} />
-                      เริ่ม {a.startTime} น.
-                    </div>
-                  )}
-                  {a.note && (
-                    <div className="text-sm text-gray-600 mt-2 bg-amber-50 rounded-lg px-2.5 py-1.5">
-                      📌 {a.note}
-                    </div>
-                  )}
                 </div>
                 {rec && <StatusBadge status={rec.status} />}
               </div>
+
+              {/* หมายเหตุ — เต็มความกว้าง (ถ้าอยู่ในคอลัมน์ข้อความจะถูกรูปบีบจนอ่านยากบนมือถือ) */}
+              {a.note && (
+                <div className="text-sm text-gray-600 mt-2 bg-amber-50 rounded-lg px-2.5 py-1.5">
+                  📌 {a.note}
+                </div>
+              )}
 
               {rec?.review?.comment && (
                 <div className="mt-2 text-sm bg-gray-50 rounded-lg p-2.5 text-gray-700">

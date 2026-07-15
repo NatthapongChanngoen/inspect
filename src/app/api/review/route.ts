@@ -32,16 +32,7 @@ export async function POST(req: NextRequest) {
   if (record.status !== "SUBMITTED" && record.status !== "NOT_REVIEWED") {
     return NextResponse.json({ error: "งานนี้ตรวจแล้ว" }, { status: 400 });
   }
-  // ผู้ตรวจตรวจได้เฉพาะงานที่กำหนดให้ตน (คนที่ 1 หรือ 2) — งานที่ไม่ระบุผู้ตรวจ + แอดมิน = ตรวจได้ทุกงาน
-  if (user.role === "INSPECTOR") {
-    const assigned = [record.inspectorId, record.inspectorId2].filter(Boolean);
-    if (assigned.length > 0 && !assigned.includes(user.id)) {
-      return NextResponse.json(
-        { error: "งานนี้ไม่ใช่งานที่คุณรับผิดชอบ" },
-        { status: 403 }
-      );
-    }
-  }
+  // ผู้ตรวจทุกคนตรวจงานไหนก็ได้ (ไม่มีการระบุผู้ตรวจล่วงหน้าแล้ว)
   // งานนี้กำหนดให้ตรวจที่จุดเท่านั้น → ห้ามตรวจระยะไกล
   if (record.reviewPolicy === "ON_SITE") {
     return NextResponse.json(

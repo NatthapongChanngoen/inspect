@@ -14,7 +14,6 @@ const TH_MONTHS = [
 ];
 
 type Staff = { id: string; name: string; staffType: string | null };
-type Insp = { id: string; name: string };
 type Checkpoint = {
   id: string;
   name: string;
@@ -39,13 +38,9 @@ type Item = {
   daysOfWeek: number[];
   startTime: string;
   note: string;
-  inspectorId: string;
-  inspectorId2: string;
   reviewPolicy: string;
   userName: string;
   checkpointLabel: string;
-  inspectorName: string;
-  inspectorName2: string;
 };
 
 type ScheduleRow = {
@@ -57,8 +52,6 @@ type ScheduleRow = {
   active: boolean;
   reviewPolicy: string;
   user: { name: string; staffType: string | null };
-  inspector: { name: string } | null;
-  inspector2: { name: string } | null;
   checkpoint: {
     name: string;
     site: { name: string };
@@ -79,12 +72,10 @@ function presetDays(preset: string, custom: number[]): number[] {
 export default function BatchScheduleForm({
   staff,
   checkpoints,
-  inspectors,
   schedules,
 }: {
   staff: Staff[];
   checkpoints: Checkpoint[];
-  inspectors: Insp[];
   schedules: ScheduleRow[];
 }) {
   const router = useRouter();
@@ -116,8 +107,6 @@ export default function BatchScheduleForm({
   const [customDays, setCustomDays] = useState<number[]>([]);
   const [startTime, setStartTime] = useState("");
   const [note, setNote] = useState("");
-  const [inspectorId, setInspectorId] = useState("");
-  const [inspectorId2, setInspectorId2] = useState("");
   const [reviewPolicy, setReviewPolicy] = useState("BOTH");
 
   const now = new Date();
@@ -154,8 +143,6 @@ export default function BatchScheduleForm({
     }
     const u = staff.find((s) => s.id === userId);
     const c = checkpoints.find((c) => c.id === checkpointId);
-    const insp = inspectors.find((x) => x.id === inspectorId);
-    const insp2 = inspectors.find((x) => x.id === inspectorId2);
     setItems((cur) => [
       ...cur,
       {
@@ -164,13 +151,9 @@ export default function BatchScheduleForm({
         daysOfWeek: days,
         startTime,
         note,
-        inspectorId,
-        inspectorId2,
         reviewPolicy,
         userName: u?.name ?? "",
         checkpointLabel: c ? checkpointLabel(c) : "",
-        inspectorName: insp?.name ?? "",
-        inspectorName2: insp2?.name ?? "",
       },
     ]);
     setNote("");
@@ -194,8 +177,6 @@ export default function BatchScheduleForm({
           daysOfWeek: it.daysOfWeek,
           startTime: it.startTime || null,
           note: it.note || null,
-          inspectorId: it.inspectorId || null,
-          inspectorId2: it.inspectorId2 || null,
           reviewPolicy: it.reviewPolicy || "BOTH",
         }))
       );
@@ -271,42 +252,6 @@ export default function BatchScheduleForm({
           <div>
             <label className="label">เวลาเริ่ม</label>
             <TimeSelect24 value={startTime} onChange={setStartTime} />
-          </div>
-          <div>
-            <label className="label">ผู้ตรวจคนที่ 1</label>
-            <select
-              className="input"
-              value={inspectorId}
-              onChange={(e) => {
-                setInspectorId(e.target.value);
-                if (e.target.value && e.target.value === inspectorId2)
-                  setInspectorId2("");
-              }}
-            >
-              <option value="">— ไม่ระบุ (ผู้ตรวจทุกคนเห็น) —</option>
-              {inspectors.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="label">ผู้ตรวจคนที่ 2</label>
-            <select
-              className="input"
-              value={inspectorId2}
-              onChange={(e) => setInspectorId2(e.target.value)}
-            >
-              <option value="">— ไม่ระบุ —</option>
-              {inspectors
-                .filter((u) => u.id !== inspectorId)
-                .map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name}
-                  </option>
-                ))}
-            </select>
           </div>
           <div>
             <label className="label">วิธีตรวจ</label>
@@ -422,7 +367,6 @@ export default function BatchScheduleForm({
                 <th className="p-3 font-medium">สถานที่ / จุด</th>
                 <th className="p-3 font-medium whitespace-nowrap">วัน</th>
                 <th className="p-3 font-medium whitespace-nowrap">เวลา</th>
-                <th className="p-3 font-medium whitespace-nowrap">ผู้ตรวจ</th>
                 <th className="p-3 font-medium">หมายเหตุ</th>
                 <th className="p-3"></th>
               </tr>
@@ -439,11 +383,6 @@ export default function BatchScheduleForm({
                   </td>
                   <td className="p-3 text-gray-600 whitespace-nowrap">
                     {it.startTime || "—"}
-                  </td>
-                  <td className="p-3 text-gray-600 whitespace-nowrap">
-                    {[it.inspectorName, it.inspectorName2]
-                      .filter(Boolean)
-                      .join(", ") || "—"}
                   </td>
                   <td className="p-3 text-gray-600">{it.note || "—"}</td>
                   <td className="p-3 text-right">
@@ -528,11 +467,6 @@ export default function BatchScheduleForm({
                   {fmtDaysOfWeek(s.daysOfWeek)}
                 </span>
                 {s.startTime ? ` · ${s.startTime} น.` : ""}
-                {[s.inspector?.name, s.inspector2?.name].filter(Boolean).length
-                  ? ` · ผู้ตรวจ: ${[s.inspector?.name, s.inspector2?.name]
-                      .filter(Boolean)
-                      .join(", ")}`
-                  : ""}
                 {` · ${reviewPolicyLabel[s.reviewPolicy] ?? s.reviewPolicy}`}
                 {s.note ? ` · ${s.note}` : ""}
               </div>

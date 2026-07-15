@@ -73,6 +73,27 @@ export function lateInfo(lateMinutes: number | null | undefined): {
   };
 }
 
+// จำนวนวันเต็มที่ผ่านมาแล้วนับจาก d ถึงตอนนี้ (ไทยไม่มี DST → หารตรง ๆ ได้)
+export function daysSince(d: Date | string): number {
+  const ms = Date.now() - new Date(d).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return 0;
+  return Math.floor(ms / 86400000);
+}
+
+// ช่วงวันของงาน (เข้าซ่อม → เสร็จ) เป็นข้อความไทย เช่น "3 วัน"
+// นับแบบรวมวันแรก (inclusive) — เข้าซ่อมและเสร็จวันเดียวกัน = "1 วัน" ไม่ใช่ "0 วัน"
+// คืน "—" เมื่อไม่ได้กรอกวันใดวันหนึ่ง หรือวันเสร็จมาก่อนวันเข้าซ่อม
+// (ฟอร์มเสนอราคาไม่ได้บังคับ และ createRepairProposal ไม่ validate ว่า finish >= start)
+export function fmtDaySpan(
+  start: Date | string | null | undefined,
+  finish: Date | string | null | undefined
+): string {
+  if (!start || !finish) return "—";
+  const ms = new Date(finish).getTime() - new Date(start).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return "—";
+  return `${Math.round(ms / 86400000) + 1} วัน`;
+}
+
 // คืนจำนวนนาที (ตัวเลข) สำหรับใช้คำนวณ/แสดง
 export function durationMinutes(
   from: Date | string | null | undefined,

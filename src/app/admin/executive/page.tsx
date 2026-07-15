@@ -329,7 +329,7 @@ export default async function ExecutivePage({
                 <thead>
                   <tr className="text-left text-gray-500 border-b border-gray-100">
                     <th className="p-3 font-medium">จุด / สถานที่</th>
-                    <th className="p-3 font-medium">ผู้ตรวจ</th>
+                    <th className="p-3 font-medium">ผู้ตรวจจริง</th>
                     <th className="p-3 font-medium text-center">งาน</th>
                     <th className="p-3 font-medium text-center">ผ่าน</th>
                     <th className="p-3 font-medium text-center">ไม่ผ่าน</th>

@@ -91,13 +91,11 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  // ผู้ตรวจ (สูงสุด 2 คน) + เวลาเริ่ม + วิธีตรวจ (จาก assignment วันนี้ หรือ งานประจำที่ตรงวัน)
-  let inspectorId: string | null = assignment?.inspectorId ?? null;
-  let inspectorId2: string | null = assignment?.inspectorId2 ?? null;
+  // เวลาเริ่ม + วิธีตรวจ (จาก assignment วันนี้ หรือ งานประจำที่ตรงวัน)
   let expectedStartTime: string | null = assignment?.startTime ?? null;
   let reviewPolicy: "REMOTE" | "ON_SITE" | "BOTH" =
     assignment?.reviewPolicy ?? "BOTH";
-  if (!inspectorId || !expectedStartTime || !assignment) {
+  if (!expectedStartTime || !assignment) {
     const sched = await prisma.schedule.findFirst({
       where: {
         userId: user.id,
@@ -106,17 +104,10 @@ export async function POST(req: NextRequest) {
         daysOfWeek: { has: new Date().getDay() },
       },
       select: {
-        inspectorId: true,
-        inspectorId2: true,
         startTime: true,
         reviewPolicy: true,
       },
     });
-    // ถ้าไม่มีผู้ตรวจจาก assignment ให้ยกทั้งคู่จากงานประจำ (กันการปนแหล่ง)
-    if (!inspectorId) {
-      inspectorId = sched?.inspectorId ?? null;
-      inspectorId2 = sched?.inspectorId2 ?? null;
-    }
     if (!expectedStartTime) expectedStartTime = sched?.startTime ?? null;
     if (!assignment && sched?.reviewPolicy) reviewPolicy = sched.reviewPolicy;
   }
@@ -158,8 +149,6 @@ export async function POST(req: NextRequest) {
       checkpointId,
       userId: user.id,
       assignmentId: assignment?.id,
-      inspectorId,
-      inspectorId2,
       expectedStartTime,
       lateMinutes,
       lateBaseAt,

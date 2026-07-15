@@ -46,8 +46,8 @@ export async function getExecutiveReport(
       include: {
         checkpoint: { include: { site: true } },
         user: { select: { id: true, name: true, staffType: true, role: true } },
-        inspector: { select: { name: true } },
-        inspector2: { select: { name: true } },
+        // คนที่กดตรวจงานนี้จริง (ไม่มีการระบุผู้ตรวจล่วงหน้าแล้ว)
+        review: { select: { inspector: { select: { name: true } } } },
       },
     }),
     prisma.issue.groupBy({
@@ -114,6 +114,7 @@ export async function getExecutiveReport(
   const bySiteMap = new Map<string, Bucket & { name: string }>();
   const byCheckpointMap = new Map<
     string,
+    // inspectors = คนที่ "กดตรวจจริง" ของงานที่จุดนี้ (จาก Review)
     Bucket & { name: string; site: string; inspectors: Set<string> }
   >();
   const byType: Record<"HOUSEKEEPER" | "SECURITY", Bucket> = {
@@ -169,8 +170,7 @@ export async function getExecutiveReport(
         ...emptyBucket(),
       };
     bump(cp);
-    if (r.inspector?.name) cp.inspectors.add(r.inspector.name);
-    if (r.inspector2?.name) cp.inspectors.add(r.inspector2.name);
+    if (r.review?.inspector?.name) cp.inspectors.add(r.review.inspector.name);
     byCheckpointMap.set(r.checkpointId, cp);
 
     // by staff type

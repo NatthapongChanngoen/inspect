@@ -1,14 +1,18 @@
 import { prisma } from "@/lib/db";
+import { currentUser } from "@/lib/session";
 import { createSite } from "../actions";
 import SiteManager from "@/components/SiteManager";
 
 export const dynamic = "force-dynamic";
 
 export default async function SitesPage() {
-  const sites = await prisma.site.findMany({
-    include: { _count: { select: { checkpoints: true } } },
-    orderBy: { createdAt: "asc" },
-  });
+  const [sites, me] = await Promise.all([
+    prisma.site.findMany({
+      include: { _count: { select: { checkpoints: true } } },
+      orderBy: { createdAt: "asc" },
+    }),
+    currentUser(),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -30,6 +34,7 @@ export default async function SitesPage() {
       </form>
 
       <SiteManager
+        canDelete={me?.role === "ADMIN"}
         sites={sites.map((s) => ({
           id: s.id,
           name: s.name,

@@ -7,43 +7,33 @@ export default async function AssignmentsPage() {
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
-  const [staff, checkpoints, inspectors, assignments, schedules] =
-    await Promise.all([
-      prisma.user.findMany({
-        where: { role: "STAFF", active: true },
-        orderBy: { name: "asc" },
-        select: { id: true, name: true, staffType: true },
-      }),
-      prisma.checkpoint.findMany({
-        where: { active: true },
-        include: { site: true, department: true },
-        orderBy: { name: "asc" },
-      }),
-      prisma.user.findMany({
-        where: { role: "INSPECTOR", active: true },
-        orderBy: { name: "asc" },
-        select: { id: true, name: true },
-      }),
-      prisma.assignment.findMany({
-        where: { scheduledDate: { gte: todayStart } },
-        include: {
-          user: true,
-          inspector: { select: { name: true } },
-          inspector2: { select: { name: true } },
-          checkpoint: { include: { site: true, department: true } },
-        },
-        orderBy: [{ scheduledDate: "asc" }, { createdAt: "asc" }],
-      }),
-      prisma.schedule.findMany({
-        include: {
-          user: true,
-          inspector: { select: { name: true } },
-          inspector2: { select: { name: true } },
-          checkpoint: { include: { site: true, department: true } },
-        },
-        orderBy: { createdAt: "desc" },
-      }),
-    ]);
+  const [staff, checkpoints, assignments, schedules] = await Promise.all([
+    prisma.user.findMany({
+      where: { role: "STAFF", active: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, staffType: true },
+    }),
+    prisma.checkpoint.findMany({
+      where: { active: true },
+      include: { site: true, department: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.assignment.findMany({
+      where: { scheduledDate: { gte: todayStart } },
+      include: {
+        user: true,
+        checkpoint: { include: { site: true, department: true } },
+      },
+      orderBy: [{ scheduledDate: "asc" }, { createdAt: "asc" }],
+    }),
+    prisma.schedule.findMany({
+      include: {
+        user: true,
+        checkpoint: { include: { site: true, department: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
 
   const todayStr = new Date(todayStart.getTime() - todayStart.getTimezoneOffset() * 60000)
     .toISOString()
@@ -63,7 +53,6 @@ export default async function AssignmentsPage() {
         <AssignmentTabs
           staff={staff}
           checkpoints={checkpoints}
-          inspectors={inspectors}
           schedules={schedules}
           defaultDate={todayStr}
           assignments={assignments}

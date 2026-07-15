@@ -108,6 +108,7 @@ export default function AddUserModal({
                   >
                     <option value="STAFF">พนักงาน (แม่บ้าน/รปภ)</option>
                     <option value="INSPECTOR">ผู้ตรวจสอบ</option>
+                    <option value="SUPERVISOR">ผู้สั่งงาน</option>
                     <option value="ADMIN">ผู้ดูแลระบบ</option>
                     <option value="EXECUTIVE">ผู้บริหาร</option>
                   </select>

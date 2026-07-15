@@ -131,6 +131,14 @@ export function buildWelcomeMessage(opts?: {
         color: "#3b82f6",
         height: "sm",
         margin: "sm",
+        action: { type: "uri", label: "📋 ผู้สั่งงาน — เข้าสู่ระบบ", uri: `${url}?role=supervisor` },
+      },
+      {
+        type: "button",
+        style: "primary",
+        color: "#3b82f6",
+        height: "sm",
+        margin: "sm",
         action: { type: "uri", label: "📊 ผู้บริหาร — เข้าสู่ระบบ", uri: `${url}?role=executive` },
       },
       {
@@ -314,6 +322,92 @@ export function buildReportMenuMessage(): any {
   return {
     type: "flex",
     altText: "รายงานผู้บริหาร",
+    contents: bubble,
+  };
+}
+
+// ตอบเมื่อพิมพ์ "แจ้งซ่อม" / "ของหมด" — ปุ่มแยกตามเรื่องที่จะแจ้ง
+// แจ้งได้เลยไม่ต้องผูกบัญชี (ยืนยันตัวด้วย LINE idToken ที่ /api/issues/public)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function buildIssueMenuMessage(): any {
+  const url = liffUrl();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const buttons: any[] = url
+    ? [
+        {
+          type: "button",
+          style: "primary",
+          color: "#10b981",
+          height: "sm",
+          action: {
+            type: "uri",
+            label: "🛠️ แจ้งซ่อมอุปกรณ์",
+            uri: `${url}?to=report&type=REPAIR`,
+          },
+        },
+        {
+          type: "button",
+          style: "primary",
+          color: "#10b981",
+          height: "sm",
+          margin: "sm",
+          action: {
+            type: "uri",
+            label: "📦 แจ้งของหมด",
+            uri: `${url}?to=report&type=SUPPLY`,
+          },
+        },
+      ]
+    : [];
+
+  const bubble = {
+    type: "bubble",
+    header: {
+      type: "box",
+      layout: "vertical",
+      backgroundColor: "#10b981",
+      paddingAll: "16px",
+      contents: [
+        {
+          type: "text",
+          text: "🛠️ แจ้งซ่อม / ของหมด",
+          weight: "bold",
+          size: "lg",
+          color: "#ffffff",
+          wrap: true,
+        },
+      ],
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        {
+          type: "text",
+          text: "เลือกเรื่องที่ต้องการแจ้ง — แจ้งผ่าน LINE ได้ทันที ไม่ต้องเข้าสู่ระบบ",
+          size: "sm",
+          color: "#555555",
+          wrap: true,
+        },
+        ...(buttons.length
+          ? [
+              {
+                type: "box",
+                layout: "vertical",
+                spacing: "sm",
+                margin: "md",
+                contents: buttons,
+              },
+            ]
+          : []),
+      ],
+    },
+  };
+
+  return {
+    type: "flex",
+    altText: "แจ้งซ่อม / ของหมด — เลือกเรื่องที่ต้องการแจ้ง",
     contents: bubble,
   };
 }

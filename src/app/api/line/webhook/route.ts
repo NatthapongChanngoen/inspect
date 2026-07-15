@@ -7,7 +7,9 @@ import {
   buildWorkMenuMessage,
   buildAdminLoginMessage,
   buildReportMenuMessage,
+  buildIssueMenuMessage,
 } from "@/lib/lineMessaging";
+import { classifyMessage } from "@/lib/lineRouting";
 
 const CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET;
 
@@ -53,32 +55,20 @@ export async function POST(req: NextRequest) {
     events = [];
   }
 
-  // ตอบเมนูต้อนรับสำหรับ event ที่มี replyToken (พิมพ์ข้อความ / แอดเพื่อน)
-  // คำที่ทำให้แสดงเมนูต้อนรับ (นอกจากนี้จะเงียบ — ไม่ตอบทุกข้อความ)
-  const MENU_KEYWORDS = ["เมนู", "menu", "เริ่ม", "start", "สวัสดี", "hello", "hi"];
-
+  // ตอบสำหรับ event ที่มี replyToken (พิมพ์ข้อความ / แอดเพื่อน)
   await Promise.all(
     events.map(async (ev: LineEvent) => {
       if (ev.type !== "message" && ev.type !== "follow") return;
       if (!ev.replyToken) return;
 
       // ข้อความที่พิมพ์มา (เฉพาะ event message แบบ text)
-      const text = (
+      const text =
         ev.type === "message" && ev.message?.type === "text"
           ? String(ev.message.text || "")
-          : ""
-      ).trim();
-      const lower = text.toLowerCase();
+          : "";
 
-      // ตัดสินใจว่าจะตอบอะไร — ตอบเฉพาะ trigger ที่กำหนด ไม่ตอบทุกข้อความ
-      // ⚠️ ต้องเช็ค "รายงาน" ก่อน "งาน" เพราะ "รายงาน".includes("งาน") = true
-      let kind: "work" | "welcome" | "admin" | "report" | null = null;
-      if (ev.type === "follow") kind = "welcome"; // แอดเพื่อนครั้งแรก
-      else if (lower.includes("admin")) kind = "admin"; // พิมพ์ "admin"
-      else if (text.includes("รายงาน")) kind = "report"; // พิมพ์ "รายงาน"
-      else if (text.includes("งาน")) kind = "work"; // พิมพ์ "งาน"
-      else if (MENU_KEYWORDS.some((k) => lower.includes(k))) kind = "welcome";
-
+      // ตัดสินใจว่าจะตอบอะไร (ตรรกะ + ลำดับ อยู่ที่ src/lib/lineRouting.ts)
+      const kind = classifyMessage(text, ev.type === "follow");
       if (!kind) return; // ไม่ตรง trigger → เงียบ (ไม่ตอบ)
 
       const lineUserId: string | undefined = ev.source?.userId;
@@ -91,6 +81,7 @@ export async function POST(req: NextRequest) {
 
       // พิมพ์ "admin" → ปุ่มเข้าสู่ระบบผู้ดูแลระบบ
       // พิมพ์ "รายงาน" → ปุ่มไปหน้ารายงานผู้บริหาร
+      // พิมพ์ "แจ้งซ่อม"/"ของหมด" → ปุ่มแยกเรื่องที่จะแจ้ง (ไม่ต้องผูกบัญชี)
       // พิมพ์ "งาน" + ผูกบัญชีแล้ว → เมนูงาน
       // พิมพ์ "งาน" แต่ยังไม่ผูก → การ์ดต้อนรับปุ่มแยกบทบาท (ให้เข้าสู่ระบบก่อน)
       const msg =
@@ -98,9 +89,11 @@ export async function POST(req: NextRequest) {
           ? buildAdminLoginMessage()
           : kind === "report"
             ? buildReportMenuMessage()
-            : kind === "work" && user?.name
-              ? buildWorkMenuMessage({ name: user.name })
-              : buildWelcomeMessage({ name: user?.name });
+            : kind === "issue"
+              ? buildIssueMenuMessage()
+              : kind === "work" && user?.name
+                ? buildWorkMenuMessage({ name: user.name })
+                : buildWelcomeMessage({ name: user?.name });
 
       await replyMessage(ev.replyToken, [msg]);
     })

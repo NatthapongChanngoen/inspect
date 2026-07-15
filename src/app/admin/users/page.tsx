@@ -7,15 +7,9 @@ import AddUserModal from "@/components/AddUserModal";
 import EditUserModal from "@/components/EditUserModal";
 import UserFilters from "@/components/UserFilters";
 import StatCard from "@/components/StatCard";
+import { ROLE_LABELS as roleLabel } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
-
-const roleLabel: Record<string, string> = {
-  STAFF: "พนักงาน",
-  INSPECTOR: "ผู้ตรวจสอบ",
-  ADMIN: "ผู้ดูแลระบบ",
-  EXECUTIVE: "ผู้บริหาร",
-};
 
 const staffTypeLabel: Record<string, string> = {
   HOUSEKEEPER: "แม่บ้าน",
@@ -37,7 +31,8 @@ export default async function UsersPage({
     fRole === "STAFF" ||
     fRole === "INSPECTOR" ||
     fRole === "ADMIN" ||
-    fRole === "EXECUTIVE"
+    fRole === "EXECUTIVE" ||
+    fRole === "SUPERVISOR"
   )
     where.role = fRole;
   if (fStaffType === "HOUSEKEEPER" || fStaffType === "SECURITY")

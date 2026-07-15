@@ -10,14 +10,12 @@ type AssignProps = React.ComponentProps<typeof BatchAssignForm>;
 export default function AssignmentTabs({
   staff,
   checkpoints,
-  inspectors,
   schedules,
   defaultDate,
   assignments,
 }: {
   staff: ScheduleProps["staff"];
   checkpoints: ScheduleProps["checkpoints"];
-  inspectors: ScheduleProps["inspectors"];
   schedules: ScheduleProps["schedules"];
   defaultDate: AssignProps["defaultDate"];
   assignments: AssignProps["assignments"];
@@ -64,14 +62,12 @@ export default function AssignmentTabs({
         <BatchScheduleForm
           staff={staff}
           checkpoints={checkpoints}
-          inspectors={inspectors}
           schedules={schedules}
         />
       ) : (
         <BatchAssignForm
           staff={staff}
           checkpoints={checkpoints}
-          inspectors={inspectors}
           defaultDate={defaultDate}
           assignments={assignments}
         />

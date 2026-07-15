@@ -2,13 +2,7 @@ import Link from "next/link";
 import { User } from "lucide-react";
 import LogoutButton from "./LogoutButton";
 import { CheckIcon } from "./Icons";
-
-const roleLabel: Record<string, string> = {
-  STAFF: "พนักงาน",
-  INSPECTOR: "ผู้ตรวจสอบ",
-  ADMIN: "ผู้ดูแลระบบ",
-  EXECUTIVE: "ผู้บริหาร",
-};
+import { ROLE_LABELS as roleLabel } from "@/lib/permissions";
 
 export default function Header({
   name,

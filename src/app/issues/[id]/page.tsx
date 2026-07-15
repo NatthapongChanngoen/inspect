@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { currentUser } from "@/lib/session";
-import { fmtDate, fmtDateTime } from "@/lib/date";
+import { fmtDate, fmtDateTime, fmtDaySpan } from "@/lib/date";
 import ImageThumb from "@/components/ImageThumb";
 import RepairProposalForm from "@/components/RepairProposalForm";
 import SelectProposalButton from "@/components/SelectProposalButton";
@@ -43,7 +43,8 @@ export default async function IssueDetailPage({
         acceptedBy: { select: { name: true } },
         proposals: {
           include: { proposedBy: { select: { name: true } } },
-          orderBy: { createdAt: "asc" },
+          // เรียงตามราคา = เทียบง่าย · tiebreak ด้วย createdAt กันลำดับสลับเมื่อราคาเท่ากัน
+          orderBy: [{ price: "asc" }, { createdAt: "asc" }],
         },
       },
     }),
@@ -69,6 +70,11 @@ export default async function IssueDetailPage({
   const canComplete =
     isRepair && (isDeptMember || isAdmin) && issue.status === "APPROVED";
   const selected = issue.proposals.find((p) => p.selected) || null;
+  // ราคาต่ำสุด — ติดป้าย "ถูกสุด" ทุกใบที่ราคาเท่านี้ (ไม่ใช่แค่ใบแรก) เมื่อมีให้เทียบ ≥2 ใบ
+  const minPrice =
+    issue.proposals.length > 1
+      ? Math.min(...issue.proposals.map((p) => p.price))
+      : null;
   // ── ของหมด (SUPPLY): ฝ่ายรับเรื่อง → ส่งหลักฐานว่าเติมแล้ว ──
   const isSupply = issue.type === "SUPPLY";
   const canAcceptSupply =
@@ -137,38 +143,74 @@ export default async function IssueDetailPage({
             </div>
           ) : (
             <div className="space-y-2">
-              {issue.proposals.map((p) => (
+              {issue.proposals.map((p) => {
+                const cheapest = minPrice != null && p.price === minPrice;
+                return (
                 <div
                   key={p.id}
-                  className={`card p-3 ${
-                    p.selected ? "border-2 border-emerald-400 bg-emerald-50" : ""
+                  className={`card p-3 space-y-2 ${
+                    p.selected
+                      ? "border-2 border-emerald-400 bg-emerald-50"
+                      : cheapest
+                        ? "ring-2 ring-emerald-400"
+                        : ""
                   }`}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="font-medium text-sm">
-                      เสนอโดย {p.proposedBy.name}
+                  <div className="flex items-start justify-between gap-2 flex-wrap">
+                    <div className="text-sm">
+                      {cheapest && (
+                        <span className="badge bg-emerald-100 text-emerald-800 mr-1.5">
+                          🏆 ถูกสุด
+                        </span>
+                      )}
                       {p.selected && (
-                        <span className="badge bg-emerald-100 text-emerald-800 ml-2">
+                        <span className="badge bg-emerald-100 text-emerald-800 mr-1.5">
                           เลือกแล้ว
                         </span>
                       )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-brand-dark">
-                        ฿{p.price.toLocaleString("th-TH")}
+                      <span className="font-medium">
+                        เสนอโดย {p.proposedBy.name}
                       </span>
-                      {canSelect && !p.selected && (
-                        <SelectProposalButton proposalId={p.id} />
-                      )}
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      เสนอเมื่อ {fmtDate(p.createdAt)}
                     </div>
                   </div>
-                  <div className="text-xs text-gray-500 mt-1">
-                    ช่าง: {p.technician}
-                    {p.startDate ? ` · เข้าซ่อม ${fmtDate(p.startDate)}` : ""}
-                    {p.finishDate ? ` · เสร็จ ${fmtDate(p.finishDate)}` : ""}
+
+                  {/* แถบสเปกเทียบ — ทุกการ์ดใช้ grid เดียวกัน คอลัมน์เลยตรงกันตามแนวตั้ง */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 rounded-lg bg-gray-50 p-2.5">
+                    <div>
+                      <div className="font-semibold text-brand-dark">
+                        ฿{p.price.toLocaleString("th-TH")}
+                      </div>
+                      <div className="text-xs text-gray-400">ราคา</div>
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-medium text-sm text-gray-800 truncate">
+                        {p.technician}
+                      </div>
+                      <div className="text-xs text-gray-400">ช่าง</div>
+                    </div>
+                    <div>
+                      <div className="font-medium text-sm text-gray-800">
+                        {p.startDate || p.finishDate
+                          ? `${p.startDate ? fmtDate(p.startDate) : "—"} → ${
+                              p.finishDate ? fmtDate(p.finishDate) : "—"
+                            }`
+                          : "—"}
+                      </div>
+                      <div className="text-xs text-gray-400">เข้าซ่อม → เสร็จ</div>
+                    </div>
+                    <div>
+                      <div className="font-medium text-sm text-gray-800">
+                        {fmtDaySpan(p.startDate, p.finishDate)}
+                      </div>
+                      <div className="text-xs text-gray-400">ระยะเวลา</div>
+                    </div>
                   </div>
+
                   {p.detail && (
-                    <div className="text-sm text-gray-700 mt-1">{p.detail}</div>
+                    <div className="text-sm text-gray-700">{p.detail}</div>
                   )}
                   {p.attachmentPaths.length > 0 && (
                     <div className="mt-2">
@@ -199,8 +241,20 @@ export default async function IssueDetailPage({
                       </div>
                     </div>
                   )}
+
+                  {canSelect && !p.selected && (
+                    <div className="flex justify-end">
+                      <SelectProposalButton
+                        proposalId={p.id}
+                        confirmLabel={`ช่าง ${p.technician} · ฿${p.price.toLocaleString(
+                          "th-TH"
+                        )}`}
+                      />
+                    </div>
+                  )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>

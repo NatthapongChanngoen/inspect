@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { currentUser } from "@/lib/session";
+import { canAssign } from "@/lib/permissions";
 import { saveUpload } from "@/lib/storage";
 import { fmtDate, fmtDateTime } from "@/lib/date";
 import {
@@ -24,6 +25,16 @@ function parseStaffType(v: string): StaffType | null {
 async function assertAdmin() {
   const user = await currentUser();
   if (!user || user.role !== "ADMIN") {
+    throw new Error("ไม่มีสิทธิ์");
+  }
+}
+
+// ประตูสำหรับงาน "มอบหมายงาน + จัดการสถานที่/จุด" → ADMIN + ผู้สั่งงาน
+// แยกจาก assertAdmin เพราะ assertAdmin คุมทุกอย่าง (ลบผู้ใช้/รีเซ็ตรหัส/ลบสถานที่)
+// ถ้าเอาผู้สั่งงานยัดเข้า assertAdmin จะเปิดสิทธิ์ทั้งกระดานพร้อมกัน
+async function assertCanAssign() {
+  const user = await currentUser();
+  if (!user || !canAssign(user.role)) {
     throw new Error("ไม่มีสิทธิ์");
   }
 }
@@ -222,7 +233,7 @@ export async function resetPassword(formData: FormData) {
 
 // ---------- สถานที่ ----------
 export async function createSite(formData: FormData) {
-  await assertAdmin();
+  await assertCanAssign();
   const name = String(formData.get("name") || "").trim();
   const address = String(formData.get("address") || "").trim() || null;
   if (!name) return;
@@ -236,7 +247,7 @@ export async function updateSite(
   name: string,
   address: string
 ): Promise<{ ok: boolean; error?: string }> {
-  await assertAdmin();
+  await assertCanAssign();
   if (!name.trim()) return { ok: false, error: "กรุณากรอกชื่อสถานที่" };
   await prisma.site.update({
     where: { id },
@@ -250,7 +261,7 @@ export async function updateSite(
 export async function toggleSiteActive(
   id: string
 ): Promise<{ ok: boolean; error?: string }> {
-  await assertAdmin();
+  await assertCanAssign();
   const s = await prisma.site.findUnique({ where: { id } });
   if (s) {
     await prisma.site.update({ where: { id }, data: { active: !s.active } });
@@ -349,7 +360,7 @@ function pickPhotos(formData: FormData): File[] {
 export async function createCheckpoint(
   formData: FormData
 ): Promise<{ ok: boolean; error?: string }> {
-  await assertAdmin();
+  await assertCanAssign();
   const siteId = String(formData.get("siteId") || "");
   const departmentId = String(formData.get("departmentId") || "") || null;
   const name = String(formData.get("name") || "").trim();
@@ -379,7 +390,7 @@ export async function createCheckpoint(
 export async function addCheckpointPhotos(
   formData: FormData
 ): Promise<{ ok: boolean; error?: string }> {
-  await assertAdmin();
+  await assertCanAssign();
   const id = String(formData.get("checkpointId") || "");
   const cp = await prisma.checkpoint.findUnique({
     where: { id },
@@ -411,7 +422,7 @@ export async function removeCheckpointPhoto(
   id: string,
   path: string
 ): Promise<{ ok: boolean; error?: string }> {
-  await assertAdmin();
+  await assertCanAssign();
   const cp = await prisma.checkpoint.findUnique({
     where: { id },
     select: { photoPaths: true },
@@ -433,7 +444,7 @@ export async function setCheckpointDepartment(
   id: string,
   departmentId: string | null
 ) {
-  await assertAdmin();
+  await assertCanAssign();
   await prisma.checkpoint
     .update({ where: { id }, data: { departmentId: departmentId || null } })
     .catch(() => {});
@@ -457,7 +468,7 @@ export async function toggleCheckpointActive(formData: FormData) {
 export async function toggleCheckpointActiveById(
   id: string
 ): Promise<{ ok: boolean; error?: string }> {
-  await assertAdmin();
+  await assertCanAssign();
   const cp = await prisma.checkpoint.findUnique({ where: { id } });
   if (cp) {
     await prisma.checkpoint.update({
@@ -555,8 +566,6 @@ type BatchAssignItem = {
   date: string; // "YYYY-MM-DD"
   startTime?: string | null;
   note?: string | null;
-  inspectorId?: string | null;
-  inspectorId2?: string | null;
   reviewPolicy?: string | null;
 };
 
@@ -565,22 +574,10 @@ function toReviewPolicy(v: unknown): "REMOTE" | "ON_SITE" | "BOTH" {
   return v === "REMOTE" || v === "ON_SITE" ? v : "BOTH";
 }
 
-// จัดผู้ตรวจสูงสุด 2 คน: trim, empty→null, กันซ้ำ, ถ้าเหลือแค่คนที่ 2 ให้เลื่อนเป็นคนที่ 1
-function normalizeInspectorPair(
-  a: unknown,
-  b: unknown
-): { inspectorId: string | null; inspectorId2: string | null } {
-  const first = (typeof a === "string" ? a : "").trim() || null;
-  let second = (typeof b === "string" ? b : "").trim() || null;
-  if (second && second === first) second = null; // กันเลือกคนเดียวกันซ้ำ
-  if (!first && second) return { inspectorId: second, inspectorId2: null };
-  return { inspectorId: first, inspectorId2: second };
-}
-
 export async function createAssignmentsBatch(
   items: BatchAssignItem[]
 ): Promise<{ ok: boolean; created: number; error?: string }> {
-  await assertAdmin();
+  await assertCanAssign();
   if (!Array.isArray(items) || items.length === 0) {
     return { ok: false, created: 0, error: "ยังไม่มีงานในรายการ" };
   }
@@ -599,10 +596,6 @@ export async function createAssignmentsBatch(
     const dateStr = String(it.date || "");
     const startTime = (it.startTime || "").trim() || null;
     const note = (it.note || "").trim() || null;
-    const { inspectorId, inspectorId2 } = normalizeInspectorPair(
-      it.inspectorId,
-      it.inspectorId2
-    );
     const reviewPolicy = toReviewPolicy(it.reviewPolicy);
     if (!userId || !checkpointId || !dateStr) continue;
 
@@ -616,8 +609,6 @@ export async function createAssignmentsBatch(
         scheduledDate,
         startTime,
         note,
-        inspectorId,
-        inspectorId2,
         reviewPolicy,
       },
     });
@@ -694,7 +685,7 @@ async function notifyAssignmentsBatch(
 }
 
 export async function deleteAssignment(formData: FormData) {
-  await assertAdmin();
+  await assertCanAssign();
   const id = String(formData.get("id"));
   await prisma.assignment.delete({ where: { id } }).catch(() => {});
   revalidatePath("/admin/assignments");
@@ -742,15 +733,13 @@ type BatchScheduleItem = {
   daysOfWeek: number[];
   startTime?: string | null;
   note?: string | null;
-  inspectorId?: string | null;
-  inspectorId2?: string | null;
   reviewPolicy?: string | null;
 };
 
 export async function createSchedulesBatch(
   items: BatchScheduleItem[]
 ): Promise<{ ok: boolean; created: number; error?: string }> {
-  await assertAdmin();
+  await assertCanAssign();
   if (!Array.isArray(items) || items.length === 0) {
     return { ok: false, created: 0, error: "ยังไม่มีงานในรายการ" };
   }
@@ -764,10 +753,6 @@ export async function createSchedulesBatch(
       .filter((n) => n >= 0 && n <= 6);
     const startTime = (it.startTime || "").trim() || null;
     const note = (it.note || "").trim() || null;
-    const { inspectorId, inspectorId2 } = normalizeInspectorPair(
-      it.inspectorId,
-      it.inspectorId2
-    );
     const reviewPolicy = toReviewPolicy(it.reviewPolicy);
     if (!userId || !checkpointId || daysOfWeek.length === 0) continue;
 
@@ -778,8 +763,6 @@ export async function createSchedulesBatch(
         daysOfWeek,
         startTime,
         note,
-        inspectorId,
-        inspectorId2,
         reviewPolicy,
       },
     });
@@ -791,7 +774,7 @@ export async function createSchedulesBatch(
 }
 
 export async function deleteSchedule(formData: FormData) {
-  await assertAdmin();
+  await assertCanAssign();
   const id = String(formData.get("id"));
   await prisma.schedule.delete({ where: { id } }).catch(() => {});
   revalidatePath("/admin/assignments");
@@ -965,7 +948,9 @@ export async function createRepairProposal(
   }
 
   revalidatePath(`/issues/${issueId}`);
+  revalidatePath("/issues"); // แดชบอร์ดผู้บริหาร — งานเพิ่งเข้าคิว "รอคุณเลือก"
   revalidatePath("/admin/issues");
+  revalidatePath("/admin/repairs");
   return { ok: true };
 }
 
@@ -986,22 +971,42 @@ export async function selectRepairProposal(
     },
   });
   if (!prop) return { ok: false, error: "ไม่พบข้อเสนอ" };
+  if (prop.issue.type !== "REPAIR") {
+    return { ok: false, error: "รายการนี้ไม่ใช่งานซ่อม" };
+  }
   const issueId = prop.issueId;
 
-  await prisma.$transaction([
-    prisma.repairProposal.updateMany({
-      where: { issueId },
-      data: { selected: false },
-    }),
-    prisma.repairProposal.update({
-      where: { id: proposalId },
-      data: { selected: true },
-    }),
-    prisma.issue.update({
-      where: { id: issueId },
-      data: { status: "APPROVED", approvedById: me.id, approvedAt: new Date() },
-    }),
-  ]);
+  // บังคับสถานะใน WHERE ของ updateMany (ไม่ใช่ if ก่อน transaction) — กัน 2 คน/2 แท็บ
+  // กดพร้อมกันแล้วอนุมัติซ้ำ + ยิง LINE ซ้ำ · ไม่มี action ถอนอนุมัติ = พลาดแล้วกู้ไม่ได้
+  try {
+    await prisma.$transaction(async (tx) => {
+      const r = await tx.issue.updateMany({
+        where: { id: issueId, status: "PROPOSED" },
+        data: {
+          status: "APPROVED",
+          approvedById: me.id,
+          approvedAt: new Date(),
+        },
+      });
+      if (r.count === 0) throw new Error("STALE");
+      await tx.repairProposal.updateMany({
+        where: { issueId },
+        data: { selected: false },
+      });
+      await tx.repairProposal.update({
+        where: { id: proposalId },
+        data: { selected: true },
+      });
+    });
+  } catch (e) {
+    if (e instanceof Error && e.message === "STALE") {
+      return {
+        ok: false,
+        error: "งานนี้ถูกอนุมัติไปแล้ว หรือสถานะเปลี่ยนแล้ว — รีเฟรชหน้าอีกครั้ง",
+      };
+    }
+    throw e;
+  }
 
   // แจ้งฝ่ายที่รับผิดชอบทุกคน
   try {
@@ -1030,6 +1035,8 @@ export async function selectRepairProposal(
   }
 
   revalidatePath(`/issues/${issueId}`);
+  revalidatePath("/issues"); // แดชบอร์ดผู้บริหาร (หน้าที่กดปุ่ม)
   revalidatePath("/admin/issues");
+  revalidatePath("/admin/repairs"); // KPI รอผู้บริหารเลือก + งบที่อนุมัติ
   return { ok: true };
 }

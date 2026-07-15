@@ -1,4 +1,5 @@
 import type { NextAuthConfig } from "next-auth";
+import type { AppRole } from "@/lib/permissions";
 
 // ส่วน config ที่ปลอดภัยกับ Edge runtime (ไม่มี prisma / bcrypt)
 // ใช้ร่วมกันทั้ง middleware และ instance หลัก
@@ -21,7 +22,7 @@ export const authConfig = {
     session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string;
-        session.user.role = token.role as "STAFF" | "INSPECTOR" | "ADMIN";
+        session.user.role = token.role as AppRole;
       }
       return session;
     },

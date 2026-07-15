@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { navHrefsFor } from "@/lib/permissions";
 import {
   GridIcon,
   BuildingIcon,
@@ -52,21 +53,16 @@ function useActive() {
     href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
 }
 
-// ผู้บริหารเห็นเฉพาะรายงาน
-const EXEC_ALLOWED = new Set(["/admin/executive", "/admin/repairs", "/issues"]);
-
 export default function AdminNav({ role }: { role?: string }) {
   const isActive = useActive();
 
-  const visibleGroups =
-    role === "EXECUTIVE"
-      ? groups
-          .map((g) => ({
-            ...g,
-            items: g.items.filter((it) => EXEC_ALLOWED.has(it.href)),
-          }))
-          .filter((g) => g.items.length > 0)
-      : groups;
+  // null = เห็นทุกเมนู (แอดมิน) · ไม่งั้นกรองตามบทบาท (ดู src/lib/permissions.ts)
+  const allowed = navHrefsFor(role);
+  const visibleGroups = allowed
+    ? groups
+        .map((g) => ({ ...g, items: g.items.filter((it) => allowed.has(it.href)) }))
+        .filter((g) => g.items.length > 0)
+    : groups;
 
   return (
     <>

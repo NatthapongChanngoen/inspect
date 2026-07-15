@@ -12,14 +12,19 @@ export const dynamic = "force-dynamic";
 export default async function LinePage({
   searchParams,
 }: {
-  searchParams: Promise<{ to?: string; role?: string }>;
+  searchParams: Promise<{ to?: string; role?: string; type?: string }>;
 }) {
   const liffId = process.env.LIFF_ID || "";
-  const { to, role } = await searchParams;
+  const { to, role, type } = await searchParams;
   const isReport = to === "report";
-  // ผู้ตรวจ/ผู้บริหาร/แอดมิน ใช้รหัสผ่าน — เปิดในแอป LINE แต่กรอกชื่อ+รหัส
+  // เรื่องที่เลือกมาจากปุ่มในข้อความ LINE (ค่าอื่น/ไม่ส่งมา → ซ่อมอุปกรณ์ตามเดิม)
+  const defaultType = type === "SUPPLY" ? "SUPPLY" : "REPAIR";
+  // ผู้ตรวจ/ผู้สั่งงาน/ผู้บริหาร/แอดมิน ใช้รหัสผ่าน — เปิดในแอป LINE แต่กรอกชื่อ+รหัส
   const isPasswordRole =
-    role === "inspector" || role === "executive" || role === "admin";
+    role === "inspector" ||
+    role === "supervisor" ||
+    role === "executive" ||
+    role === "admin";
 
   // หัวข้อตามบทบาทที่เลือกมา — มีผลแค่ข้อความ ไม่กระทบ flow ยืนยันตัวตน
   const roleTitle =
@@ -29,11 +34,13 @@ export default async function LinePage({
         ? "เข้าสู่ระบบ รปภ."
         : role === "inspector"
           ? "เข้าสู่ระบบผู้ตรวจ"
-          : role === "executive"
-            ? "เข้าสู่ระบบผู้บริหาร"
-            : role === "admin"
-              ? "เข้าสู่ระบบผู้ดูแลระบบ"
-              : "ระบบตรวจงาน";
+          : role === "supervisor"
+            ? "เข้าสู่ระบบผู้สั่งงาน"
+            : role === "executive"
+              ? "เข้าสู่ระบบผู้บริหาร"
+              : role === "admin"
+                ? "เข้าสู่ระบบผู้ดูแลระบบ"
+                : "ระบบตรวจงาน";
 
   const checkpoints = isReport
     ? await prisma.checkpoint.findMany({
@@ -65,7 +72,11 @@ export default async function LinePage({
         </div>
 
         {isReport ? (
-          <PublicIssueForm liffId={liffId} checkpoints={checkpoints} />
+          <PublicIssueForm
+            liffId={liffId}
+            checkpoints={checkpoints}
+            defaultType={defaultType}
+          />
         ) : isPasswordRole ? (
           <Suspense fallback={<div className="text-center text-gray-400">กำลังโหลด…</div>}>
             <LinePasswordLogin liffId={liffId} />

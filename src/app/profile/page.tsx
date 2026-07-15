@@ -2,22 +2,9 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { currentUser } from "@/lib/session";
 import ChangePasswordForm from "@/components/ChangePasswordForm";
+import { ROLE_LABELS as roleLabel, homeFor } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
-
-const roleLabel: Record<string, string> = {
-  STAFF: "พนักงาน",
-  INSPECTOR: "ผู้ตรวจสอบ",
-  ADMIN: "ผู้ดูแลระบบ",
-  EXECUTIVE: "ผู้บริหาร",
-};
-
-function homeFor(role?: string): string {
-  if (role === "ADMIN") return "/admin";
-  if (role === "EXECUTIVE") return "/admin/executive";
-  if (role === "INSPECTOR") return "/inspector";
-  return "/staff";
-}
 
 export default async function ProfilePage() {
   const me = await currentUser();

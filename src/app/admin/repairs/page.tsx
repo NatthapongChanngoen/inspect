@@ -117,6 +117,7 @@ export default async function RepairsDashboardPage({
 
   const me = await currentUser();
   const isAdmin = me?.role === "ADMIN";
+  const isExec = me?.role === "EXECUTIVE";
 
   const [report, departments, checkpointOpts] = await Promise.all([
     getRepairReport(from, to, {
@@ -192,6 +193,14 @@ export default async function RepairsDashboardPage({
               label="รอผู้บริหารเลือกข้อเสนอ"
               value={backlog.proposed}
               tone={backlog.proposed > 0 ? "text-amber-600" : "text-gray-900"}
+              // ส่งฝ่ายที่กรองอยู่ไปด้วย ไม่งั้นคลิกแล้วตัวกรองหลุด = เลขไม่ตรงกับที่เพิ่งคลิก
+              href={
+                isExec
+                  ? `/issues${fDept ? `?departmentId=${fDept}` : ""}`
+                  : isAdmin
+                    ? "/admin/issues?status=PROPOSED"
+                    : undefined
+              }
             />
             <KpiTile
               label="รอช่างปิดงาน"

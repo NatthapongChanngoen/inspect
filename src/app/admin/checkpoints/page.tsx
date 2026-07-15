@@ -1,6 +1,7 @@
 import Link from "next/link";
 import QRCode from "qrcode";
 import { prisma } from "@/lib/db";
+import { currentUser } from "@/lib/session";
 import CheckpointActions from "@/components/CheckpointActions";
 import CheckpointDepartmentSelect from "@/components/CheckpointDepartmentSelect";
 import CheckpointCreateForm from "@/components/CheckpointCreateForm";
@@ -9,7 +10,7 @@ import CheckpointPhotosManager from "@/components/CheckpointPhotosManager";
 export const dynamic = "force-dynamic";
 
 export default async function CheckpointsPage() {
-  const [sites, departments, checkpoints] = await Promise.all([
+  const [sites, departments, checkpoints, me] = await Promise.all([
     prisma.site.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
     prisma.department.findMany({
       where: { active: true },
@@ -19,7 +20,9 @@ export default async function CheckpointsPage() {
       include: { site: true, department: true },
       orderBy: { createdAt: "asc" },
     }),
+    currentUser(),
   ]);
+  const canDelete = me?.role === "ADMIN";
 
   const qrMap = new Map<string, string>();
   for (const cp of checkpoints) {
@@ -71,7 +74,12 @@ export default async function CheckpointsPage() {
                   พิมพ์ QR
                 </Link>
               </div>
-              <CheckpointActions id={cp.id} name={cp.name} active={cp.active} />
+              <CheckpointActions
+                id={cp.id}
+                name={cp.name}
+                active={cp.active}
+                canDelete={canDelete}
+              />
             </div>
           </div>
         ))}

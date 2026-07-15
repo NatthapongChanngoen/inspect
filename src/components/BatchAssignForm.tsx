@@ -9,7 +9,6 @@ import { fmtDate } from "@/lib/date";
 import TimeSelect24 from "./TimeSelect24";
 
 type Staff = { id: string; name: string; staffType: string | null };
-type Insp = { id: string; name: string };
 type Checkpoint = {
   id: string;
   name: string;
@@ -34,14 +33,10 @@ type Item = {
   date: string;
   startTime: string;
   note: string;
-  inspectorId: string;
-  inspectorId2: string;
   reviewPolicy: string;
   // ป้ายไว้แสดงในตาราง
   userName: string;
   checkpointLabel: string;
-  inspectorName: string;
-  inspectorName2: string;
 };
 
 type AssignmentRow = {
@@ -52,8 +47,6 @@ type AssignmentRow = {
   note: string | null;
   reviewPolicy: string;
   user: { name: string; staffType: string | null };
-  inspector: { name: string } | null;
-  inspector2: { name: string } | null;
   checkpoint: {
     name: string;
     site: { name: string };
@@ -67,13 +60,11 @@ const listSelectCls =
 export default function BatchAssignForm({
   staff,
   checkpoints,
-  inspectors,
   defaultDate,
   assignments,
 }: {
   staff: Staff[];
   checkpoints: Checkpoint[];
-  inspectors: Insp[];
   defaultDate: string;
   assignments: AssignmentRow[];
 }) {
@@ -105,8 +96,6 @@ export default function BatchAssignForm({
   const [date, setDate] = useState(defaultDate);
   const [startTime, setStartTime] = useState("");
   const [note, setNote] = useState("");
-  const [inspectorId, setInspectorId] = useState("");
-  const [inspectorId2, setInspectorId2] = useState("");
   const [reviewPolicy, setReviewPolicy] = useState("BOTH");
 
   const [items, setItems] = useState<Item[]>([]);
@@ -121,8 +110,6 @@ export default function BatchAssignForm({
     }
     const u = staff.find((s) => s.id === userId);
     const c = checkpoints.find((c) => c.id === checkpointId);
-    const insp = inspectors.find((x) => x.id === inspectorId);
-    const insp2 = inspectors.find((x) => x.id === inspectorId2);
     setItems((cur) => [
       ...cur,
       {
@@ -131,13 +118,9 @@ export default function BatchAssignForm({
         date,
         startTime,
         note,
-        inspectorId,
-        inspectorId2,
         reviewPolicy,
         userName: u?.name ?? "",
         checkpointLabel: c ? checkpointLabel(c) : "",
-        inspectorName: insp?.name ?? "",
-        inspectorName2: insp2?.name ?? "",
       },
     ]);
     // ล้างเฉพาะหมายเหตุ/เวลา ให้เพิ่มงานถัดไปต่อได้ง่าย
@@ -162,8 +145,6 @@ export default function BatchAssignForm({
           date: it.date,
           startTime: it.startTime || null,
           note: it.note || null,
-          inspectorId: it.inspectorId || null,
-          inspectorId2: it.inspectorId2 || null,
           reviewPolicy: it.reviewPolicy || "BOTH",
         }))
       );
@@ -243,43 +224,6 @@ export default function BatchAssignForm({
             <TimeSelect24 value={startTime} onChange={setStartTime} />
           </div>
           <div>
-            <label className="label">ผู้ตรวจคนที่ 1</label>
-            <select
-              className="input"
-              value={inspectorId}
-              onChange={(e) => {
-                setInspectorId(e.target.value);
-                // ถ้าคนที่ 1 ซ้ำกับคนที่ 2 ให้ล้างคนที่ 2
-                if (e.target.value && e.target.value === inspectorId2)
-                  setInspectorId2("");
-              }}
-            >
-              <option value="">— ไม่ระบุ (ผู้ตรวจทุกคนเห็น) —</option>
-              {inspectors.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="label">ผู้ตรวจคนที่ 2</label>
-            <select
-              className="input"
-              value={inspectorId2}
-              onChange={(e) => setInspectorId2(e.target.value)}
-            >
-              <option value="">— ไม่ระบุ —</option>
-              {inspectors
-                .filter((u) => u.id !== inspectorId)
-                .map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name}
-                  </option>
-                ))}
-            </select>
-          </div>
-          <div>
             <label className="label">วิธีตรวจ</label>
             <select
               className="input"
@@ -315,7 +259,6 @@ export default function BatchAssignForm({
                 <th className="p-3 font-medium">สถานที่ / จุด</th>
                 <th className="p-3 font-medium whitespace-nowrap">วันที่</th>
                 <th className="p-3 font-medium whitespace-nowrap">เวลา</th>
-                <th className="p-3 font-medium whitespace-nowrap">ผู้ตรวจ</th>
                 <th className="p-3 font-medium">หมายเหตุ</th>
                 <th className="p-3"></th>
               </tr>
@@ -330,11 +273,6 @@ export default function BatchAssignForm({
                   <td className="p-3 text-gray-600 whitespace-nowrap">{it.date}</td>
                   <td className="p-3 text-gray-600 whitespace-nowrap">
                     {it.startTime || "—"}
-                  </td>
-                  <td className="p-3 text-gray-600 whitespace-nowrap">
-                    {[it.inspectorName, it.inspectorName2]
-                      .filter(Boolean)
-                      .join(", ") || "—"}
                   </td>
                   <td className="p-3 text-gray-600">{it.note || "—"}</td>
                   <td className="p-3 text-right">
@@ -415,11 +353,6 @@ export default function BatchAssignForm({
                   : ""}
                 {a.checkpoint.site.name} · {fmtDate(a.scheduledDate)}
                 {a.startTime ? ` · ${a.startTime} น.` : ""}
-                {[a.inspector?.name, a.inspector2?.name].filter(Boolean).length
-                  ? ` · ผู้ตรวจ: ${[a.inspector?.name, a.inspector2?.name]
-                      .filter(Boolean)
-                      .join(", ")}`
-                  : ""}
                 {` · ${reviewPolicyLabel[a.reviewPolicy] ?? a.reviewPolicy}`}
                 {a.note ? ` · ${a.note}` : ""}
               </div>

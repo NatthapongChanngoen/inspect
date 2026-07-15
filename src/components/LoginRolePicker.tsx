@@ -67,7 +67,7 @@ export default function LoginRolePicker() {
         <span className="h-px flex-1 bg-gray-200" />
       </div>
 
-      {/* ผู้ตรวจ / ผู้บริหาร → ฟอร์มรหัสผ่าน */}
+      {/* ผู้ตรวจ / ผู้สั่งงาน / ผู้บริหาร → ฟอร์มรหัสผ่าน (ทุกปุ่มเปิดฟอร์มเดียวกัน — เป็นแค่ตัวนำทาง) */}
       <button
         type="button"
         onClick={() => setMode("password")}
@@ -75,6 +75,14 @@ export default function LoginRolePicker() {
         style={{ backgroundColor: "#3b82f6" }}
       >
         ✅ ผู้ตรวจ — เข้าสู่ระบบ
+      </button>
+      <button
+        type="button"
+        onClick={() => setMode("password")}
+        className="btn w-full text-white"
+        style={{ backgroundColor: "#3b82f6" }}
+      >
+        📋 ผู้สั่งงาน — เข้าสู่ระบบ
       </button>
       <button
         type="button"

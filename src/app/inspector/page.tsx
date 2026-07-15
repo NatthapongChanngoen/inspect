@@ -1,31 +1,15 @@
 import Link from "next/link";
-import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { currentUser } from "@/lib/session";
 import { fmtDateTime } from "@/lib/date";
 import StatusBadge from "@/components/StatusBadge";
 
 export const dynamic = "force-dynamic";
 
 export default async function InspectorQueue() {
-  const me = await currentUser();
-
   // รวมงานที่รอตรวจ + งานที่ตัดรอบแล้ว (ไม่ได้รับการตรวจ) → ยังตรวจย้อนหลังได้
-  const where: Prisma.WorkRecordWhereInput = {
-    status: { in: ["SUBMITTED", "NOT_REVIEWED"] },
-  };
-  // ผู้ตรวจ (ไม่ใช่แอดมิน) → เห็นเฉพาะงานที่กำหนดให้ตน (คนที่ 1 หรือ 2) + งานที่ยังไม่ระบุผู้ตรวจ
-  if (me?.role === "INSPECTOR") {
-    where.OR = [
-      { inspectorId: me.id },
-      { inspectorId2: me.id },
-      // "ไม่ระบุผู้ตรวจ" = ทั้งสองช่องว่าง (ทุกคนเห็น)
-      { AND: [{ inspectorId: null }, { inspectorId2: null }] },
-    ];
-  }
-
+  // ผู้ตรวจทุกคนเห็นทุกงาน (ไม่มีการระบุผู้ตรวจล่วงหน้าแล้ว — ใครว่างก็ตรวจได้)
   const pending = await prisma.workRecord.findMany({
-    where,
+    where: { status: { in: ["SUBMITTED", "NOT_REVIEWED"] } },
     include: {
       checkpoint: { include: { site: true, department: true } },
       user: true,

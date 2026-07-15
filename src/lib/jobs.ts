@@ -127,8 +127,8 @@ export async function runReviewCutoff(): Promise<{ marked: number }> {
   return { marked: result.count };
 }
 
-// ส่งรายการที่ต้องตรวจ (งานสถานะ SUBMITTED) ให้ผู้ตรวจแต่ละคน — เฉพาะจุดที่ตนรับผิดชอบ
-// (จุดที่ยังไม่กำหนดผู้ตรวจ = ส่งให้ผู้ตรวจทุกคน กันงานตกหล่น)
+// ส่งรายการที่ต้องตรวจ (งานสถานะ SUBMITTED) ให้ผู้ตรวจทุกคน
+// (ไม่มีการระบุผู้ตรวจล่วงหน้าแล้ว — ทุกคนได้รายการเดียวกัน ใครว่างก็ตรวจได้)
 export async function sendInspectorDailyList(): Promise<{ sent: number }> {
   const pending = await prisma.workRecord.findMany({
     where: { status: "SUBMITTED" },
@@ -139,30 +139,27 @@ export async function sendInspectorDailyList(): Promise<{ sent: number }> {
     orderBy: { submittedAt: "asc" },
   });
 
+  if (pending.length === 0) {
+    console.log("[jobs] ไม่มีงานรอตรวจ — ไม่ส่งรายการ");
+    return { sent: 0 };
+  }
+
   const inspectors = await prisma.user.findMany({
     where: { role: "INSPECTOR", active: true, lineUserId: { not: null } },
-    select: { id: true, lineUserId: true },
+    select: { lineUserId: true },
   });
 
   const dateStr = fmtDate(new Date());
+  const items = pending.map((r) => ({
+    siteName: r.checkpoint.site.name,
+    checkpointName: r.checkpoint.name,
+    staffName: r.user.name,
+    timeStr: r.submittedAt ? fmtDateTime(r.submittedAt) : "",
+  }));
+  const msg = buildInspectorListMessage({ dateStr, items });
+
   let sent = 0;
   for (const ins of inspectors) {
-    // งานที่กำหนดให้ผู้ตรวจคนนี้ (คนที่ 1 หรือ 2) หรืองานที่ยังไม่ระบุผู้ตรวจ (ทั้งคู่ว่าง)
-    const mine = pending.filter(
-      (r) =>
-        (r.inspectorId === null && r.inspectorId2 === null) ||
-        r.inspectorId === ins.id ||
-        r.inspectorId2 === ins.id
-    );
-    if (mine.length === 0) continue;
-
-    const items = mine.map((r) => ({
-      siteName: r.checkpoint.site.name,
-      checkpointName: r.checkpoint.name,
-      staffName: r.user.name,
-      timeStr: r.submittedAt ? fmtDateTime(r.submittedAt) : "",
-    }));
-    const msg = buildInspectorListMessage({ dateStr, items });
     if (ins.lineUserId && (await pushMessage(ins.lineUserId, [msg]))) sent++;
   }
   console.log(`[jobs] ส่งรายการตรวจให้ผู้ตรวจ ${sent} คน`);

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { User } from "lucide-react";
 import LogoutButton from "./LogoutButton";
+import { ROLE_LABELS as roleLabel } from "@/lib/permissions";
 
 const titles: { prefix: string; label: string }[] = [
   { prefix: "/admin/sites", label: "สถานที่" },
@@ -13,17 +14,12 @@ const titles: { prefix: string; label: string }[] = [
   { prefix: "/admin/assignments", label: "มอบหมายงาน" },
   { prefix: "/admin/reports", label: "รายงานเวลา" },
   { prefix: "/admin/issues", label: "แจ้งซ่อม/ของหมด" },
+  { prefix: "/admin/repairs", label: "แดชบอร์ดงานซ่อม" },
   { prefix: "/admin/executive", label: "รายงานผู้บริหาร" },
   { prefix: "/admin/suspicious", label: "งานน่าสงสัย" },
-  { prefix: "/admin", label: "แดชบอร์ด" },
+  { prefix: "/admin", label: "แดชบอร์ด" }, // catch-all ของ /admin — ต้องอยู่ท้ายสุด
+  { prefix: "/issues", label: "งานซ่อม (ข้อเสนอ)" },
 ];
-
-const roleLabel: Record<string, string> = {
-  STAFF: "พนักงาน",
-  INSPECTOR: "ผู้ตรวจสอบ",
-  ADMIN: "ผู้ดูแลระบบ",
-  EXECUTIVE: "ผู้บริหาร",
-};
 
 export default function AdminTopbar({
   name,

@@ -13,6 +13,7 @@ enum Role {
   INSPECTOR // ผู้ตรวจสอบ
   ADMIN // ผู้ดูแลระบบ
   EXECUTIVE // ผู้บริหาร (ดูรายงานอย่างเดียว)
+  SUPERVISOR // ผู้สั่งงาน (มอบหมายงาน + จัดการสถานที่/จุด แต่ลบสถานที่/จุดไม่ได้)
 }
 
 enum WorkStatus {
@@ -81,14 +82,6 @@ model User {
   reviews      Review[]     @relation("InspectorReviews")
   reportedIssues Issue[]    @relation("ReportedIssues")
   resolvedIssues Issue[]    @relation("ResolvedIssues")
-  // งานที่ผู้ตรวจคนนี้ถูกกำหนดให้ตรวจ (เลือกตอนมอบหมายงาน)
-  assignmentInspections Assignment[] @relation("AssignmentInspector")
-  scheduleInspections   Schedule[]   @relation("ScheduleInspector")
-  workInspections       WorkRecord[] @relation("WorkRecordInspector")
-  // ผู้ตรวจคนที่ 2 (เลือกได้สูงสุด 2 คนต่อจุด)
-  assignmentInspections2 Assignment[] @relation("AssignmentInspector2")
-  scheduleInspections2   Schedule[]   @relation("ScheduleInspector2")
-  workInspections2       WorkRecord[] @relation("WorkRecordInspector2")
   // สังกัดฝ่าย (ใช้ระบุผู้รับผิดชอบงานซ่อมของฝ่ายนั้น)
   departmentId String?
   department   Department? @relation("DeptMembers", fields: [departmentId], references: [id])
@@ -153,12 +146,6 @@ model Schedule {
   note         String?
   active       Boolean    @default(true)
   createdAt    DateTime   @default(now())
-  // ผู้ตรวจที่กำหนดให้ตรวจงานนี้ (เลือกตอนมอบหมาย)
-  inspectorId  String?
-  inspector    User?      @relation("ScheduleInspector", fields: [inspectorId], references: [id])
-  // ผู้ตรวจคนที่ 2 (optional — เลือกได้สูงสุด 2 คน)
-  inspectorId2 String?
-  inspector2   User?      @relation("ScheduleInspector2", fields: [inspectorId2], references: [id])
   // วิธีตรวจที่อนุญาต (ระยะไกล/ที่จุด/ทั้งสองแบบ)
   reviewPolicy ReviewPolicy @default(BOTH)
 
@@ -177,12 +164,6 @@ model Assignment {
   note          String?
   createdAt     DateTime     @default(now())
   workRecords   WorkRecord[]
-  // ผู้ตรวจที่กำหนดให้ตรวจงานนี้ (เลือกตอนมอบหมาย)
-  inspectorId   String?
-  inspector     User?        @relation("AssignmentInspector", fields: [inspectorId], references: [id])
-  // ผู้ตรวจคนที่ 2 (optional — เลือกได้สูงสุด 2 คน)
-  inspectorId2  String?
-  inspector2    User?        @relation("AssignmentInspector2", fields: [inspectorId2], references: [id])
   // วิธีตรวจที่อนุญาต (ระยะไกล/ที่จุด/ทั้งสองแบบ)
   reviewPolicy  ReviewPolicy @default(BOTH)
 
@@ -198,12 +179,6 @@ model WorkRecord {
   user            User        @relation(fields: [userId], references: [id])
   assignmentId    String?
   assignment      Assignment? @relation(fields: [assignmentId], references: [id])
-  // ผู้ตรวจที่ถูกกำหนดให้ตรวจงานนี้ (คัดลอกมาจาก assignment/schedule ตอนเช็คอิน)
-  inspectorId     String?
-  inspector       User?       @relation("WorkRecordInspector", fields: [inspectorId], references: [id])
-  // ผู้ตรวจคนที่ 2 (คัดลอกมาจาก assignment/schedule ตอนเช็คอิน)
-  inspectorId2    String?
-  inspector2      User?       @relation("WorkRecordInspector2", fields: [inspectorId2], references: [id])
   // เข้าสาย: เวลาเริ่มที่กำหนด + จำนวนนาทีที่เช็คอินช้ากว่ากำหนด (null = งานไม่ได้กำหนดเวลา)
   expectedStartTime String?
   lateMinutes       Int?

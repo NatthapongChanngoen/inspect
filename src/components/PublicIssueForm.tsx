@@ -10,9 +10,12 @@ type Status = "loading" | "config" | "ready" | "done" | "error";
 export default function PublicIssueForm({
   liffId,
   checkpoints,
+  defaultType = "REPAIR",
 }: {
   liffId: string;
   checkpoints: CheckpointOpt[];
+  // เรื่องที่เลือกไว้ล่วงหน้า — มาจากปุ่มในข้อความ LINE (?type=REPAIR|SUPPLY)
+  defaultType?: IssueType;
 }) {
   const [status, setStatus] = useState<Status>(liffId ? "loading" : "config");
   const [error, setError] = useState("");
@@ -21,7 +24,7 @@ export default function PublicIssueForm({
   const started = useRef(false);
 
   // ฟอร์ม
-  const [type, setType] = useState<IssueType>("REPAIR");
+  const [type, setType] = useState<IssueType>(defaultType);
   const [checkpointId, setCheckpointId] = useState(checkpoints[0]?.id ?? "");
   const [detail, setDetail] = useState("");
   const [photo, setPhoto] = useState<File | null>(null);
