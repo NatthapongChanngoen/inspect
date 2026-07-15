@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 export type SessionUser = {
   id: string;
   name?: string | null;
-  role: "STAFF" | "INSPECTOR" | "ADMIN";
+  role: "STAFF" | "INSPECTOR" | "ADMIN" | "EXECUTIVE";
 };
 
 export async function currentUser(): Promise<SessionUser | null> {

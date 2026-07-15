@@ -1,6 +1,5 @@
 import { Suspense } from "react";
-import Link from "next/link";
-import LoginForm from "@/components/LoginForm";
+import LoginRolePicker from "@/components/LoginRolePicker";
 
 export default function LoginPage() {
   return (
@@ -13,29 +12,11 @@ export default function LoginPage() {
             </svg>
           </div>
           <h1 className="text-2xl font-bold text-gray-900">ระบบตรวจงาน</h1>
-          <p className="text-sm text-gray-500 mt-0.5">แม่บ้าน / รปภ.</p>
-        </div>
-
-        {/* เข้าสู่ระบบด้วย LINE (เปิดผ่านแอป LINE จะล็อกอินอัตโนมัติ) */}
-        <Link
-          href="/line"
-          className="btn w-full text-white mb-4"
-          style={{ backgroundColor: "#06C755" }}
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M12 2C6.48 2 2 5.69 2 10.23c0 4.07 3.55 7.48 8.34 8.13.32.07.77.21.88.49.1.25.07.64.03.9l-.14.86c-.04.25-.2.99.87.54 1.07-.45 5.75-3.39 7.85-5.8C21.36 13.74 22 12.06 22 10.23 22 5.69 17.52 2 12 2Z" />
-          </svg>
-          เข้าสู่ระบบด้วย LINE
-        </Link>
-
-        <div className="flex items-center gap-3 mb-4">
-          <span className="h-px flex-1 bg-gray-200" />
-          <span className="text-xs text-gray-400">หรือ</span>
-          <span className="h-px flex-1 bg-gray-200" />
+          <p className="text-sm text-gray-500 mt-0.5">เลือกบทบาทเพื่อเข้าสู่ระบบ</p>
         </div>
 
         <Suspense fallback={<div className="text-center text-gray-400">กำลังโหลด…</div>}>
-          <LoginForm />
+          <LoginRolePicker />
         </Suspense>
       </div>
     </div>

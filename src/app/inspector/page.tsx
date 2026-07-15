@@ -1,13 +1,35 @@
 import Link from "next/link";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { currentUser } from "@/lib/session";
 import { fmtDateTime } from "@/lib/date";
+import StatusBadge from "@/components/StatusBadge";
 
 export const dynamic = "force-dynamic";
 
 export default async function InspectorQueue() {
+  const me = await currentUser();
+
+  // รวมงานที่รอตรวจ + งานที่ตัดรอบแล้ว (ไม่ได้รับการตรวจ) → ยังตรวจย้อนหลังได้
+  const where: Prisma.WorkRecordWhereInput = {
+    status: { in: ["SUBMITTED", "NOT_REVIEWED"] },
+  };
+  // ผู้ตรวจ (ไม่ใช่แอดมิน) → เห็นเฉพาะงานที่กำหนดให้ตน (คนที่ 1 หรือ 2) + งานที่ยังไม่ระบุผู้ตรวจ
+  if (me?.role === "INSPECTOR") {
+    where.OR = [
+      { inspectorId: me.id },
+      { inspectorId2: me.id },
+      // "ไม่ระบุผู้ตรวจ" = ทั้งสองช่องว่าง (ทุกคนเห็น)
+      { AND: [{ inspectorId: null }, { inspectorId2: null }] },
+    ];
+  }
+
   const pending = await prisma.workRecord.findMany({
-    where: { status: "SUBMITTED" },
-    include: { checkpoint: { include: { site: true } }, user: true },
+    where,
+    include: {
+      checkpoint: { include: { site: true, department: true } },
+      user: true,
+    },
     orderBy: { submittedAt: "asc" },
   });
 
@@ -42,14 +64,19 @@ export default async function InspectorQueue() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="font-semibold">{r.checkpoint.name}</div>
-                <div className="text-sm text-gray-500">{r.checkpoint.site.name}</div>
+                <div className="text-sm text-gray-500">
+                  {r.checkpoint.department
+                    ? `${r.checkpoint.department.name} · `
+                    : ""}
+                  {r.checkpoint.site.name}
+                </div>
                 <div className="text-sm text-gray-600 mt-1">โดย {r.user.name}</div>
                 <div className="text-xs text-gray-400">
                   ส่งเมื่อ {r.submittedAt ? fmtDateTime(r.submittedAt) : "-"}
                 </div>
               </div>
               <div className="flex flex-col items-end gap-1">
-                <span className="badge bg-blue-100 text-blue-800">รอตรวจ</span>
+                <StatusBadge status={r.status} />
                 {r.suspicious && (
                   <span className="badge bg-amber-100 text-amber-800">
                     ⚠️ น่าสงสัย

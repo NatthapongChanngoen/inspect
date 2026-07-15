@@ -38,7 +38,10 @@ export default async function SuspiciousList({
       suspicious: true,
       ...(start ? { checkInAt: { gte: start } } : {}),
     },
-    include: { checkpoint: { include: { site: true } }, user: true },
+    include: {
+      checkpoint: { include: { site: true, department: true } },
+      user: true,
+    },
     orderBy: { checkInAt: "desc" },
     take: 200,
   });
@@ -96,6 +99,9 @@ export default async function SuspiciousList({
                     <div className="min-w-0">
                       <div className="font-semibold">{r.checkpoint.name}</div>
                       <div className="text-sm text-gray-500">
+                        {r.checkpoint.department
+                          ? `${r.checkpoint.department.name} · `
+                          : ""}
                         {r.checkpoint.site.name}
                       </div>
                       <div className="text-sm text-gray-600 mt-0.5">

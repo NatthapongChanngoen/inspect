@@ -7,6 +7,7 @@ const roleLabel: Record<string, string> = {
   STAFF: "พนักงาน",
   INSPECTOR: "ผู้ตรวจสอบ",
   ADMIN: "ผู้ดูแลระบบ",
+  EXECUTIVE: "ผู้บริหาร",
 };
 
 export default function Header({
@@ -28,7 +29,10 @@ export default function Header({
           ระบบตรวจงาน
         </Link>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2.5">
+          <Link
+            href="/profile"
+            className="flex items-center gap-2.5 hover:opacity-90"
+          >
             <span className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-white/20 ring-1 ring-white/30">
               <User size={18} />
             </span>
@@ -38,7 +42,7 @@ export default function Header({
                 {roleLabel[role] ?? role}
               </div>
             </div>
-          </div>
+          </Link>
           <LogoutButton />
         </div>
       </div>

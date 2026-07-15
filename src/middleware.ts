@@ -6,6 +6,7 @@ const { auth } = NextAuth(authConfig);
 
 function homeFor(role?: string): string {
   if (role === "ADMIN") return "/admin";
+  if (role === "EXECUTIVE") return "/admin/executive";
   if (role === "INSPECTOR") return "/inspector";
   return "/staff";
 }
@@ -20,13 +21,24 @@ export default auth((req) => {
   // ปล่อยผ่าน API ผูกบัญชี LINE (สาธารณะ)
   if (path.startsWith("/api/line")) return NextResponse.next();
 
+  // ปล่อยผ่าน API แจ้งปัญหาสาธารณะผ่าน LINE (ไม่ต้องล็อกอินแอป)
+  if (path.startsWith("/api/issues/public")) return NextResponse.next();
+
+  // ปล่อยผ่านรูปจุดสาธารณะ (ให้ LINE ดึงรูปไปแสดงในข้อความได้)
+  if (path.startsWith("/api/cp-photo")) return NextResponse.next();
+
   const isLoggedIn = !!req.auth;
   const role = req.auth?.user?.role as string | undefined;
   const isLogin = path === "/login";
   const isLanding = path === "/";
   const isLine = path === "/line";
+  // ช่องทางแจ้งซ่อมสาธารณะผ่าน LINE (/line?to=report) — ต้องเข้าได้แม้ล็อกอินอยู่ (ไม่เด้ง)
+  const isReportEntry = isLine && nextUrl.searchParams.get("to") === "report";
   // หน้าสาธารณะ: landing / login / เข้าผ่าน LINE
   const isPublic = isLogin || isLanding || isLine;
+
+  // ช่องทางแจ้งซ่อมสาธารณะ: ปล่อยผ่านทุกกรณี (ทั้งยังไม่ล็อกอินและล็อกอินแล้ว)
+  if (isReportEntry) return NextResponse.next();
 
   if (!isLoggedIn) {
     if (isPublic) return NextResponse.next();
@@ -42,7 +54,15 @@ export default auth((req) => {
 
   // ควบคุมสิทธิ์ตามบทบาท
   if (path.startsWith("/admin") && role !== "ADMIN") {
-    return NextResponse.redirect(new URL(homeFor(role), nextUrl));
+    // ผู้บริหารเข้าได้เฉพาะรายงานผู้บริหาร + รายงานเวลา
+    const execAllowed =
+      role === "EXECUTIVE" &&
+      (path.startsWith("/admin/executive") ||
+        path.startsWith("/admin/reports") ||
+        path.startsWith("/admin/repairs"));
+    if (!execAllowed) {
+      return NextResponse.redirect(new URL(homeFor(role), nextUrl));
+    }
   }
   if (path.startsWith("/inspector") && !(role === "INSPECTOR" || role === "ADMIN")) {
     return NextResponse.redirect(new URL(homeFor(role), nextUrl));

@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   if (!record || record.userId !== user.id) {
     return NextResponse.json({ error: "ไม่พบงานนี้" }, { status: 404 });
   }
-  if (record.status !== "IN_PROGRESS") {
+  if (record.status !== "IN_PROGRESS" && record.status !== "RETURNED") {
     return NextResponse.json({ error: "งานนี้ส่งไปแล้ว" }, { status: 400 });
   }
 

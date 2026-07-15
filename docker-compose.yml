@@ -50,6 +50,8 @@ services:
       LIFF_ID: ${LIFF_ID:-}
       LINE_LOGIN_CHANNEL_ID: ${LINE_LOGIN_CHANNEL_ID:-}
       LINE_MESSAGING_TOKEN: ${LINE_MESSAGING_TOKEN:-}
+      LINE_CHANNEL_SECRET: ${LINE_CHANNEL_SECRET:-}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
       TZ: Asia/Bangkok
       NODE_ENV: production
     volumes:

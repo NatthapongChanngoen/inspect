@@ -33,7 +33,7 @@ export default function LoginForm() {
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       <div>
-        <label className="label">ชื่อผู้ใช้</label>
+        <label className="label">ชื่อ</label>
         <input
           className="input"
           value={username}

@@ -15,8 +15,13 @@ function SubmitBtn() {
   );
 }
 
-export default function AddUserModal() {
+export default function AddUserModal({
+  departments = [],
+}: {
+  departments?: { id: string; name: string }[];
+}) {
   const [open, setOpen] = useState(false);
+  const [role, setRole] = useState("STAFF");
   const formRef = useRef<HTMLFormElement>(null);
   const [state, formAction] = useActionState<ActionResult | null, FormData>(
     createUserState,
@@ -28,6 +33,7 @@ export default function AddUserModal() {
     if (state?.ok) {
       setOpen(false);
       formRef.current?.reset();
+      setRole("STAFF");
     }
   }, [state]);
 
@@ -94,12 +100,39 @@ export default function AddUserModal() {
                 </div>
                 <div>
                   <label className="label">บทบาท</label>
-                  <select name="role" className="input" defaultValue="STAFF">
+                  <select
+                    name="role"
+                    className="input"
+                    value={role}
+                    onChange={(e) => setRole(e.target.value)}
+                  >
                     <option value="STAFF">พนักงาน (แม่บ้าน/รปภ)</option>
                     <option value="INSPECTOR">ผู้ตรวจสอบ</option>
                     <option value="ADMIN">ผู้ดูแลระบบ</option>
+                    <option value="EXECUTIVE">ผู้บริหาร</option>
                   </select>
                 </div>
+              </div>
+              {role === "STAFF" && (
+                <div>
+                  <label className="label">ประเภทพนักงาน</label>
+                  <select name="staffType" className="input" defaultValue="">
+                    <option value="">— ไม่ระบุ —</option>
+                    <option value="HOUSEKEEPER">แม่บ้าน</option>
+                    <option value="SECURITY">รปภ.</option>
+                  </select>
+                </div>
+              )}
+              <div>
+                <label className="label">สังกัดฝ่าย (สำหรับงานซ่อม)</label>
+                <select name="departmentId" className="input" defaultValue="">
+                  <option value="">— ไม่ระบุ —</option>
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {state && !state.ok && (

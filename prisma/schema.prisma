@@ -12,6 +12,7 @@ enum Role {
   STAFF // พนักงาน (แม่บ้าน/รปภ)
   INSPECTOR // ผู้ตรวจสอบ
   ADMIN // ผู้ดูแลระบบ
+  EXECUTIVE // ผู้บริหาร (ดูรายงานอย่างเดียว)
 }
 
 enum WorkStatus {
@@ -20,6 +21,8 @@ enum WorkStatus {
   APPROVED // ตรวจผ่าน
   REJECTED // ตรวจไม่ผ่าน
   MISSED // ไม่ได้ปฏิบัติงาน (ตัดรอบเที่ยงคืนแล้วยังไม่ได้ส่งงาน)
+  NOT_REVIEWED // ไม่ได้รับการตรวจ (ตัดรอบ 17:00 แล้วผู้ตรวจยังไม่ได้ตรวจ — ยังตรวจย้อนหลังได้)
+  RETURNED // ตีกลับให้แก้ (ผู้ตรวจส่งกลับให้พนักงานทำใหม่ที่งานเดิม)
 }
 
 enum ReviewResult {
@@ -27,9 +30,37 @@ enum ReviewResult {
   FAIL
 }
 
+// ประเภทพนักงานภาคสนาม (ใช้เฉพาะ role STAFF)
+enum StaffType {
+  HOUSEKEEPER // แม่บ้าน
+  SECURITY // รปภ.
+}
+
+// ประเภทการแจ้งปัญหา
+enum IssueType {
+  REPAIR // ซ่อมอุปกรณ์ชำรุด
+  SUPPLY // ของหมด
+}
+
+// สถานะการแจ้งปัญหา
+enum IssueStatus {
+  OPEN // รอดำเนินการ / รอฝ่ายเสนอราคา
+  PROPOSED // มีข้อเสนอซ่อมแล้ว รอผู้บริหารเลือก (เฉพาะ REPAIR)
+  APPROVED // ผู้บริหารเลือกข้อเสนอแล้ว รอฝ่ายซ่อม (เฉพาะ REPAIR)
+  IN_PROGRESS // กำลังแก้ไข
+  RESOLVED // เสร็จแล้ว
+}
+
 enum ReviewMode {
   REMOTE // อนุมัติจากการดูรูประยะไกล
   ON_SITE // ผู้ตรวจไปที่จุดจริง (สแกน QR + GPS + ถ่ายรูป)
+}
+
+// วิธีตรวจที่อนุญาตสำหรับงาน (กำหนดตอนมอบหมาย)
+enum ReviewPolicy {
+  REMOTE // ตรวจระยะไกลเท่านั้น
+  ON_SITE // ตรวจที่จุดเท่านั้น
+  BOTH // เลือกได้ทั้งสองแบบ
 }
 
 model User {
@@ -40,6 +71,7 @@ model User {
   role         Role         @default(STAFF)
   phone        String?
   nationalId   String?      @unique // เลขบัตรประชาชน 13 หลัก (ใช้ยืนยันตัวตอนผูก LINE)
+  staffType    StaffType? // ประเภทพนักงาน (แม่บ้าน/รปภ.) — เฉพาะ role STAFF
   lineUserId   String?      @unique // ผูกกับบัญชี LINE (ล็อกอินผ่าน LIFF)
   active       Boolean      @default(true)
   createdAt    DateTime     @default(now())
@@ -47,6 +79,22 @@ model User {
   schedules    Schedule[]
   workRecords  WorkRecord[]
   reviews      Review[]     @relation("InspectorReviews")
+  reportedIssues Issue[]    @relation("ReportedIssues")
+  resolvedIssues Issue[]    @relation("ResolvedIssues")
+  // งานที่ผู้ตรวจคนนี้ถูกกำหนดให้ตรวจ (เลือกตอนมอบหมายงาน)
+  assignmentInspections Assignment[] @relation("AssignmentInspector")
+  scheduleInspections   Schedule[]   @relation("ScheduleInspector")
+  workInspections       WorkRecord[] @relation("WorkRecordInspector")
+  // ผู้ตรวจคนที่ 2 (เลือกได้สูงสุด 2 คนต่อจุด)
+  assignmentInspections2 Assignment[] @relation("AssignmentInspector2")
+  scheduleInspections2   Schedule[]   @relation("ScheduleInspector2")
+  workInspections2       WorkRecord[] @relation("WorkRecordInspector2")
+  // สังกัดฝ่าย (ใช้ระบุผู้รับผิดชอบงานซ่อมของฝ่ายนั้น)
+  departmentId String?
+  department   Department? @relation("DeptMembers", fields: [departmentId], references: [id])
+  repairProposals  RepairProposal[] @relation("RepairProposer")
+  approvedIssues   Issue[]          @relation("IssueApprover")
+  acceptedIssues   Issue[]          @relation("IssueAccepter")
 }
 
 model Site {
@@ -58,22 +106,39 @@ model Site {
   checkpoints Checkpoint[]
 }
 
+// ฝ่าย/แผนกที่รับผิดชอบจุดเช็คอิน (เช่น ฝ่ายแม่บ้าน / ฝ่ายรปภ. / ฝ่ายอาคาร)
+model Department {
+  id          String       @id @default(cuid())
+  name        String
+  active      Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  checkpoints Checkpoint[]
+  members     User[]       @relation("DeptMembers")
+}
+
 model Checkpoint {
   id           String       @id @default(cuid())
   siteId       String
   site         Site         @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  // ฝ่ายที่รับผิดชอบจุดนี้ (optional — ลบฝ่ายแล้วจุดไม่ถูกลบ แค่เคลียร์ค่าเป็นว่าง)
+  departmentId String?
+  department   Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   name         String
   // โทเค็นที่ฝังใน QR Code (ลับ + ไม่ซ้ำ) ใช้ยืนยันว่าสแกนถูกจุด
   qrToken      String       @unique @default(cuid())
-  latitude     Float
-  longitude    Float
+  // พิกัด/รัศมี — เลิกใช้แล้ว (เอา GPS ออก) เก็บไว้เป็น optional
+  latitude     Float?
+  longitude    Float?
   radiusMeters Int          @default(50)
   description  String?
+  // รูปประจำจุด (2-5 รูป) — เก็บเป็น path array เสิร์ฟผ่าน /api/files
+  photoPaths   String[]     @default([])
   active       Boolean      @default(true)
   createdAt    DateTime     @default(now())
   assignments  Assignment[]
   schedules    Schedule[]
   workRecords  WorkRecord[]
+  issues       Issue[]
 }
 
 // งานประจำ: ทำซ้ำตามวันของสัปดาห์ (คลี่เป็นงานวันนี้ตอนรันไทม์)
@@ -88,6 +153,14 @@ model Schedule {
   note         String?
   active       Boolean    @default(true)
   createdAt    DateTime   @default(now())
+  // ผู้ตรวจที่กำหนดให้ตรวจงานนี้ (เลือกตอนมอบหมาย)
+  inspectorId  String?
+  inspector    User?      @relation("ScheduleInspector", fields: [inspectorId], references: [id])
+  // ผู้ตรวจคนที่ 2 (optional — เลือกได้สูงสุด 2 คน)
+  inspectorId2 String?
+  inspector2   User?      @relation("ScheduleInspector2", fields: [inspectorId2], references: [id])
+  // วิธีตรวจที่อนุญาต (ระยะไกล/ที่จุด/ทั้งสองแบบ)
+  reviewPolicy ReviewPolicy @default(BOTH)
 
   @@index([userId])
 }
@@ -104,6 +177,14 @@ model Assignment {
   note          String?
   createdAt     DateTime     @default(now())
   workRecords   WorkRecord[]
+  // ผู้ตรวจที่กำหนดให้ตรวจงานนี้ (เลือกตอนมอบหมาย)
+  inspectorId   String?
+  inspector     User?        @relation("AssignmentInspector", fields: [inspectorId], references: [id])
+  // ผู้ตรวจคนที่ 2 (optional — เลือกได้สูงสุด 2 คน)
+  inspectorId2  String?
+  inspector2    User?        @relation("AssignmentInspector2", fields: [inspectorId2], references: [id])
+  // วิธีตรวจที่อนุญาต (ระยะไกล/ที่จุด/ทั้งสองแบบ)
+  reviewPolicy  ReviewPolicy @default(BOTH)
 
   @@index([userId, scheduledDate])
 }
@@ -117,6 +198,20 @@ model WorkRecord {
   user            User        @relation(fields: [userId], references: [id])
   assignmentId    String?
   assignment      Assignment? @relation(fields: [assignmentId], references: [id])
+  // ผู้ตรวจที่ถูกกำหนดให้ตรวจงานนี้ (คัดลอกมาจาก assignment/schedule ตอนเช็คอิน)
+  inspectorId     String?
+  inspector       User?       @relation("WorkRecordInspector", fields: [inspectorId], references: [id])
+  // ผู้ตรวจคนที่ 2 (คัดลอกมาจาก assignment/schedule ตอนเช็คอิน)
+  inspectorId2    String?
+  inspector2      User?       @relation("WorkRecordInspector2", fields: [inspectorId2], references: [id])
+  // เข้าสาย: เวลาเริ่มที่กำหนด + จำนวนนาทีที่เช็คอินช้ากว่ากำหนด (null = งานไม่ได้กำหนดเวลา)
+  expectedStartTime String?
+  lateMinutes       Int?
+  // ฐานเวลาที่ใช้นับสาย = เวลาเริ่มที่กำหนด หรือ เวลาที่งานก่อนหน้าเสร็จ (แล้วแต่อันไหนช้ากว่า)
+  // ทำหลายจุดต่อเนื่องจะไม่ถูกนับสายจากเวลาเริ่มของจุดแรก
+  lateBaseAt        DateTime?
+  // วิธีตรวจที่อนุญาต (คัดลอกจาก assignment/schedule ตอนเช็คอิน)
+  reviewPolicy    ReviewPolicy @default(BOTH)
   status          WorkStatus  @default(IN_PROGRESS)
   checkInAt       DateTime    @default(now())
   checkInLat      Float?
@@ -135,8 +230,12 @@ model WorkRecord {
   suspiciousFlags String[]    @default([]) // เหตุผลที่ตั้งธง
   verifiedByQr    Boolean     @default(false)
   verifiedByGps   Boolean     @default(false)
+  checkinPhotoPath String? // รูปยืนยันที่จุด (ตอนเช็คอิน) — แทน GPS
   beforePhotoPath String?
   afterPhotoPath  String?
+  resultNotifiedAt DateTime? // ส่งสรุปผลตรวจเข้า LINE แล้วเมื่อ (กันส่งซ้ำ)
+  returnReason    String? // เหตุผลที่ผู้ตรวจตีกลับ (จุดที่ยังไม่สะอาด)
+  returnedAt      DateTime? // เวลาที่ถูกตีกลับล่าสุด
   submittedAt     DateTime?
   note            String?
   createdAt       DateTime    @default(now())
@@ -178,4 +277,58 @@ model CheckInSession {
 
   @@index([userId, checkpointId])
   @@index([expiresAt])
+}
+
+// แจ้งปัญหา: ซ่อมอุปกรณ์ชำรุด / ของหมด (พนักงานแจ้ง → แอดมินจัดการ)
+model Issue {
+  id           String      @id @default(cuid())
+  type         IssueType
+  status       IssueStatus @default(OPEN)
+  checkpointId String
+  checkpoint   Checkpoint  @relation(fields: [checkpointId], references: [id], onDelete: Cascade)
+  // ผู้แจ้งที่มีบัญชีในระบบ (null = แจ้งผ่าน LINE โดยไม่ได้ผูกบัญชี)
+  reportedById String?
+  reportedBy   User?       @relation("ReportedIssues", fields: [reportedById], references: [id])
+  // ผู้แจ้งที่ไม่มีบัญชี — เก็บชื่อ/LINE id จาก LINE profile
+  reporterName   String?
+  reporterLineId String?
+  detail       String // รายละเอียด (อุปกรณ์อะไรพัง / ของอะไรหมด)
+  photoPath    String? // รูปแนบ (ถ้ามี)
+  resolvedById String?
+  resolvedBy   User?       @relation("ResolvedIssues", fields: [resolvedById], references: [id])
+  resolvedAt   DateTime?
+  resolveNote  String?
+  createdAt    DateTime    @default(now())
+  // workflow ซ่อม: ข้อเสนอราคา + การอนุมัติของผู้บริหาร + รูปหลักฐานปิดงาน
+  proposals           RepairProposal[]
+  approvedById        String?
+  approvedBy          User?            @relation("IssueApprover", fields: [approvedById], references: [id])
+  approvedAt          DateTime?
+  completionPhotoPath String?
+  // workflow ของหมด (SUPPLY): ฝ่ายรับเรื่องไปดำเนินการ (กำลังเติม)
+  acceptedById        String?
+  acceptedBy          User?            @relation("IssueAccepter", fields: [acceptedById], references: [id])
+  acceptedAt          DateTime?
+
+  @@index([status])
+  @@index([type])
+}
+
+// ข้อเสนอราคาซ่อม — คนในฝ่ายที่รับผิดชอบเสนอได้หลายคนต่อ 1 การแจ้งซ่อม
+model RepairProposal {
+  id           String    @id @default(cuid())
+  issueId      String
+  issue        Issue     @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  proposedById String
+  proposedBy   User      @relation("RepairProposer", fields: [proposedById], references: [id])
+  technician   String // ชื่อช่าง
+  price        Float // ราคา
+  startDate    DateTime? // วันที่จะเข้ามาซ่อม
+  finishDate   DateTime? // จะเสร็จวันไหน
+  detail       String? // รายละเอียดอื่น ๆ
+  attachmentPaths String[] @default([]) // เอกสาร/รูปแนบข้อเสนอ (เช่น ใบเสนอราคา) หลายไฟล์ได้ — เสิร์ฟผ่าน /api/files
+  selected     Boolean   @default(false) // ผู้บริหารเลือกข้อเสนอนี้
+  createdAt    DateTime  @default(now())
+
+  @@index([issueId])
 }

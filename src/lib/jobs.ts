@@ -1,10 +1,13 @@
 // งานตามเวลา (cron): ตัดรอบเที่ยงคืน + ส่งรายการตรวจให้ผู้ตรวจตอน 16:30
 import { prisma } from "@/lib/db";
-import { fmtDate } from "@/lib/date";
+import { fmtDate, fmtDateTime } from "@/lib/date";
 import {
   pushMessage,
   buildInspectorListMessage,
+  buildReminderMessage,
+  buildExecutiveSummaryMessage,
 } from "@/lib/lineMessaging";
+import { getExecutiveReport } from "@/lib/report";
 
 function dayRange(d: Date) {
   const start = new Date(d);
@@ -15,10 +18,12 @@ function dayRange(d: Date) {
 }
 
 // สถานะที่ถือว่า "ปฏิบัติงานแล้ว" (มีการส่งงาน) — ไม่นับว่าขาด
-const PERFORMED: ("SUBMITTED" | "APPROVED" | "REJECTED")[] = [
+// รวม NOT_REVIEWED ด้วย: ส่งงานแล้วแต่ตัดรอบเพราะผู้ตรวจไม่ได้ตรวจ → ถือว่าทำงานแล้ว
+const PERFORMED: ("SUBMITTED" | "APPROVED" | "REJECTED" | "NOT_REVIEWED")[] = [
   "SUBMITTED",
   "APPROVED",
   "REJECTED",
+  "NOT_REVIEWED",
 ];
 
 // ตัดรอบ: งานที่มอบหมาย (รายวัน + งานประจำ) ของวันที่กำหนด (ค่าเริ่มต้น = เมื่อวาน)
@@ -110,39 +115,175 @@ export async function runMidnightCutoff(
   return { marked };
 }
 
-// ส่งรายการที่ต้องตรวจวันนี้ (งานสถานะ SUBMITTED) ให้ผู้ตรวจทุกคนที่ผูก LINE
-export async function sendInspectorDailyList(): Promise<{ sent: number }> {
-  const { start, end } = dayRange(new Date());
+// ตัดรอบงานรอตรวจ (เรียก 17:00 ทุกวัน): งานที่ยัง SUBMITTED ("รอตรวจ")
+// → เปลี่ยนเป็น NOT_REVIEWED ("ไม่ได้รับการตรวจ"). ผู้ตรวจยังเปิดตรวจย้อนหลังได้
+// (review API อนุญาตทั้ง SUBMITTED + NOT_REVIEWED → กลับเป็น APPROVED/REJECTED)
+export async function runReviewCutoff(): Promise<{ marked: number }> {
+  const result = await prisma.workRecord.updateMany({
+    where: { status: "SUBMITTED" },
+    data: { status: "NOT_REVIEWED" },
+  });
+  console.log(`[jobs] ตัดรอบรอตรวจ → NOT_REVIEWED ${result.count} รายการ`);
+  return { marked: result.count };
+}
 
+// ส่งรายการที่ต้องตรวจ (งานสถานะ SUBMITTED) ให้ผู้ตรวจแต่ละคน — เฉพาะจุดที่ตนรับผิดชอบ
+// (จุดที่ยังไม่กำหนดผู้ตรวจ = ส่งให้ผู้ตรวจทุกคน กันงานตกหล่น)
+export async function sendInspectorDailyList(): Promise<{ sent: number }> {
   const pending = await prisma.workRecord.findMany({
-    where: { status: "SUBMITTED", submittedAt: { gte: start, lt: end } },
-    include: { user: true, checkpoint: { include: { site: true } } },
+    where: { status: "SUBMITTED" },
+    include: {
+      user: true,
+      checkpoint: { include: { site: true } },
+    },
     orderBy: { submittedAt: "asc" },
   });
 
-  const items = pending.map((r) => ({
-    siteName: r.checkpoint.site.name,
-    checkpointName: r.checkpoint.name,
-    staffName: r.user.name,
-  }));
-
   const inspectors = await prisma.user.findMany({
+    where: { role: "INSPECTOR", active: true, lineUserId: { not: null } },
+    select: { id: true, lineUserId: true },
+  });
+
+  const dateStr = fmtDate(new Date());
+  let sent = 0;
+  for (const ins of inspectors) {
+    // งานที่กำหนดให้ผู้ตรวจคนนี้ (คนที่ 1 หรือ 2) หรืองานที่ยังไม่ระบุผู้ตรวจ (ทั้งคู่ว่าง)
+    const mine = pending.filter(
+      (r) =>
+        (r.inspectorId === null && r.inspectorId2 === null) ||
+        r.inspectorId === ins.id ||
+        r.inspectorId2 === ins.id
+    );
+    if (mine.length === 0) continue;
+
+    const items = mine.map((r) => ({
+      siteName: r.checkpoint.site.name,
+      checkpointName: r.checkpoint.name,
+      staffName: r.user.name,
+      timeStr: r.submittedAt ? fmtDateTime(r.submittedAt) : "",
+    }));
+    const msg = buildInspectorListMessage({ dateStr, items });
+    if (ins.lineUserId && (await pushMessage(ins.lineUserId, [msg]))) sent++;
+  }
+  console.log(`[jobs] ส่งรายการตรวจให้ผู้ตรวจ ${sent} คน`);
+  return { sent };
+}
+
+// ส่งสรุปรายงานผู้บริหารเข้า LINE ให้ ADMIN ทุกคนที่ผูก LINE
+export async function sendExecutiveSummary(
+  from: Date,
+  to: Date,
+  label: string
+): Promise<{ sent: number }> {
+  const report = await getExecutiveReport(from, to);
+  const admins = await prisma.user.findMany({
     where: {
-      role: "INSPECTOR",
+      role: { in: ["ADMIN", "EXECUTIVE"] },
       active: true,
       lineUserId: { not: null },
     },
     select: { lineUserId: true },
   });
+  if (admins.length === 0) return { sent: 0 };
 
-  const msg = buildInspectorListMessage({ dateStr: fmtDate(start), items });
+  const msg = buildExecutiveSummaryMessage({
+    periodLabel: label,
+    total: report.kpi.total,
+    attendanceRate: report.kpi.attendanceRate,
+    passRate: report.kpi.passRate,
+    missed: report.kpi.missed,
+    pending: report.kpi.pending,
+    issuesOpenNow: report.issues.openNow,
+  });
 
   let sent = 0;
-  for (const ins of inspectors) {
-    if (ins.lineUserId && (await pushMessage(ins.lineUserId, [msg]))) sent++;
+  for (const a of admins) {
+    if (a.lineUserId && (await pushMessage(a.lineUserId, [msg]))) sent++;
   }
-  console.log(
-    `[jobs] ส่งรายการตรวจ (${items.length} จุด) ให้ผู้ตรวจ ${sent} คน`
-  );
+  console.log(`[jobs] ส่งรายงานผู้บริหาร (${label}) → ${sent} คน`);
+  return { sent };
+}
+
+// ช่วง "เดือนก่อน" (สำหรับส่งอัตโนมัติต้นเดือน)
+export function previousMonthRange(now: Date = new Date()): {
+  from: Date;
+  to: Date;
+  label: string;
+} {
+  const to = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+  const from = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
+  const label = `เดือน ${from.toLocaleDateString("th-TH", {
+    month: "long",
+    year: "numeric",
+  })}`;
+  return { from, to, label };
+}
+
+// เตือน "ถึงเวลาเริ่มงาน" — เรียกทุกนาที (งานวันนี้/งานประจำที่ startTime == เวลาปัจจุบัน)
+export async function sendDueReminders(
+  forTime?: string
+): Promise<{ sent: number }> {
+  const now = new Date();
+  const hhmm =
+    forTime ||
+    `${String(now.getHours()).padStart(2, "0")}:${String(
+      now.getMinutes()
+    ).padStart(2, "0")}`;
+  const dow = now.getDay();
+  const { start, end } = dayRange(now);
+
+  const [assignments, schedules] = await Promise.all([
+    prisma.assignment.findMany({
+      where: { scheduledDate: { gte: start, lt: end }, startTime: hhmm },
+      include: { user: true, checkpoint: { include: { site: true } } },
+    }),
+    prisma.schedule.findMany({
+      where: { active: true, daysOfWeek: { has: dow }, startTime: hhmm },
+      include: { user: true, checkpoint: { include: { site: true } } },
+    }),
+  ]);
+
+  type Entry = {
+    name: string;
+    lineUserId: string;
+    seen: Set<string>;
+    jobs: {
+      checkpointName: string;
+      siteName: string;
+      dateStr: string;
+      timeStr: string;
+      note: string | null;
+    }[];
+  };
+  const byUser = new Map<string, Entry>();
+  for (const a of [...assignments, ...schedules]) {
+    if (!a.user.lineUserId) continue;
+    const e =
+      byUser.get(a.userId) ??
+      ({
+        name: a.user.name,
+        lineUserId: a.user.lineUserId,
+        seen: new Set<string>(),
+        jobs: [],
+      } as Entry);
+    if (!e.seen.has(a.checkpointId)) {
+      e.seen.add(a.checkpointId);
+      e.jobs.push({
+        checkpointName: a.checkpoint.name,
+        siteName: a.checkpoint.site.name,
+        dateStr: fmtDate(now),
+        timeStr: hhmm,
+        note: a.note ?? null,
+      });
+    }
+    byUser.set(a.userId, e);
+  }
+
+  let sent = 0;
+  for (const [, u] of byUser) {
+    const msg = buildReminderMessage({ staffName: u.name, jobs: u.jobs });
+    if (await pushMessage(u.lineUserId, [msg])) sent++;
+  }
+  if (sent > 0) console.log(`[jobs] เตือนเริ่มงาน ${hhmm} → ${sent} คน`);
   return { sent };
 }

@@ -23,7 +23,7 @@ export default async function ReviewDetail({
   const record = await prisma.workRecord.findUnique({
     where: { id },
     include: {
-      checkpoint: { include: { site: true } },
+      checkpoint: { include: { site: true, department: true } },
       user: true,
       review: true,
     },
@@ -44,7 +44,12 @@ export default async function ReviewDetail({
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-xl font-bold">{record.checkpoint.name}</h1>
-          <p className="text-gray-500">{record.checkpoint.site.name}</p>
+          <p className="text-gray-500">
+            {record.checkpoint.department
+              ? `${record.checkpoint.department.name} · `
+              : ""}
+            {record.checkpoint.site.name}
+          </p>
           <p className="text-sm text-gray-600 mt-1">พนักงาน: {record.user.name}</p>
         </div>
         <StatusBadge status={record.status} />
@@ -110,6 +115,18 @@ export default async function ReviewDetail({
         {record.note && <div>หมายเหตุพนักงาน: {record.note}</div>}
       </div>
 
+      {record.checkinPhotoPath && (
+        <div className="card p-3">
+          <div className="font-semibold mb-2 text-sm">รูปยืนยันที่จุด</div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={`/api/files/${record.checkinPhotoPath}`}
+            alt="ยืนยันที่จุด"
+            className="w-full rounded-lg border object-contain bg-gray-50 max-h-72"
+          />
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-3">
         <div className="card p-3">
           <div className="font-semibold mb-2 text-sm">ก่อนทำงาน</div>
@@ -139,8 +156,11 @@ export default async function ReviewDetail({
         </div>
       </div>
 
-      {record.status === "SUBMITTED" ? (
-        <ReviewForm workRecordId={record.id} />
+      {record.status === "SUBMITTED" || record.status === "NOT_REVIEWED" ? (
+        <ReviewForm
+          workRecordId={record.id}
+          reviewPolicy={record.reviewPolicy}
+        />
       ) : (
         record.review && (
           <div className="card p-4">

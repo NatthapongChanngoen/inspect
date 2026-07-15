@@ -57,6 +57,22 @@ export function fmtDaysOfWeek(days: number[]): string {
     .join(" ");
 }
 
+// เกณฑ์ผ่อนผัน "เข้าสาย" (นาที) — เช็คอินช้ากว่าเวลาเริ่มเกินค่านี้ = สาย
+export const LATE_GRACE_MINUTES = 5;
+
+// ข้อมูลการเข้าสายสำหรับแสดงผล
+export function lateInfo(lateMinutes: number | null | undefined): {
+  late: boolean;
+  label: string;
+} {
+  if (lateMinutes == null) return { late: false, label: "" };
+  const late = lateMinutes > LATE_GRACE_MINUTES;
+  return {
+    late,
+    label: late ? `เข้าสาย ${lateMinutes} นาที` : "ตรงเวลา",
+  };
+}
+
 // คืนจำนวนนาที (ตัวเลข) สำหรับใช้คำนวณ/แสดง
 export function durationMinutes(
   from: Date | string | null | undefined,

@@ -22,15 +22,15 @@ export default async function StaffHome() {
   const todayDow = start.getDay(); // 0=อาทิตย์ .. 6=เสาร์
 
   // งานวันนี้ = งานมอบหมายรายวัน (วันนี้) + งานประจำ (ตรงวันของสัปดาห์)
-  const [oneOff, schedules, records] = await Promise.all([
+  const [oneOff, schedules, records, meDb] = await Promise.all([
     prisma.assignment.findMany({
       where: { userId: user.id, scheduledDate: { gte: start, lt: end } },
-      include: { checkpoint: { include: { site: true } } },
+      include: { checkpoint: { include: { site: true, department: true } } },
       orderBy: { createdAt: "asc" },
     }),
     prisma.schedule.findMany({
       where: { userId: user.id, active: true, daysOfWeek: { has: todayDow } },
-      include: { checkpoint: { include: { site: true } } },
+      include: { checkpoint: { include: { site: true, department: true } } },
       orderBy: { createdAt: "asc" },
     }),
     prisma.workRecord.findMany({
@@ -38,7 +38,15 @@ export default async function StaffHome() {
       include: { review: true },
       orderBy: { checkInAt: "desc" },
     }),
+    prisma.user.findUnique({
+      where: { id: user.id },
+      select: { staffType: true },
+    }),
   ]);
+
+  // แม่บ้าน/รปภ → เห็นแค่ปุ่มแจ้งปัญหา (ไม่เห็นงานซ่อม/เสนอราคาของฝ่าย)
+  const isHousekeepingOrSecurity =
+    meDb?.staffType === "HOUSEKEEPER" || meDb?.staffType === "SECURITY";
 
   // รวมเป็นรายการงานวันนี้ (ไม่ซ้ำจุด) — งานรายวันมาก่อน (หมายเหตุ/เวลาชนะ)
   type Task = {
@@ -112,7 +120,12 @@ export default async function StaffHome() {
                   <div className="font-semibold text-gray-900 truncate">{a.checkpoint.name}</div>
                   <div className="flex items-center gap-1 text-sm text-gray-500 mt-0.5">
                     <MapPinIcon size={14} className="shrink-0 text-gray-400" />
-                    <span className="truncate">{a.checkpoint.site.name}</span>
+                    <span className="truncate">
+                      {a.checkpoint.department
+                        ? `${a.checkpoint.department.name} · `
+                        : ""}
+                      {a.checkpoint.site.name}
+                    </span>
                   </div>
                   {a.startTime && (
                     <div className="inline-flex items-center gap-1 text-xs font-medium text-brand-dark bg-brand/10 rounded-full px-2 py-0.5 mt-1.5">
@@ -135,6 +148,12 @@ export default async function StaffHome() {
                 </div>
               )}
 
+              {rec?.status === "RETURNED" && rec.returnReason && (
+                <div className="mt-2 text-sm bg-orange-50 rounded-lg p-2.5 text-orange-800">
+                  <span className="font-medium">🔁 ตีกลับให้แก้:</span> {rec.returnReason}
+                </div>
+              )}
+
               <div className="mt-3 pt-1 mt-auto">
                 {!rec && (
                   <Link href={`/staff/checkin/${a.checkpointId}`} className="btn-primary btn-lg w-full">
@@ -148,6 +167,12 @@ export default async function StaffHome() {
                     ถ่ายรูปหลังทำงาน / ส่งงาน
                   </Link>
                 )}
+                {rec?.status === "RETURNED" && (
+                  <Link href={`/staff/work/${rec.id}`} className="btn-success btn-lg w-full">
+                    <CameraIcon size={18} />
+                    ถ่ายรูปใหม่ / ส่งงานอีกครั้ง
+                  </Link>
+                )}
                 {rec?.status === "REJECTED" && (
                   <Link href={`/staff/checkin/${a.checkpointId}`} className="btn-ghost btn-lg w-full">
                     <RefreshIcon size={18} />
@@ -159,6 +184,16 @@ export default async function StaffHome() {
           );
         })}
       </div>
+
+      <Link href="/staff/report" className="btn-ghost btn-lg w-full">
+        🛠️ แจ้งปัญหา (ซ่อมอุปกรณ์ / ของหมด)
+      </Link>
+
+      {!isHousekeepingOrSecurity && (
+        <Link href="/issues" className="btn-ghost btn-lg w-full">
+          📋 งานซ่อม / เสนอราคา (ของฝ่าย)
+        </Link>
+      )}
 
       <div className="pt-1">
         <Link

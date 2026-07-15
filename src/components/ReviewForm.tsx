@@ -3,24 +3,33 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import QrScanner from "./QrScanner";
-import GpsButton, { type GpsFix } from "./GpsButton";
 import PhotoInput from "./PhotoInput";
 
 type Mode = "REMOTE" | "ON_SITE";
+type Policy = "REMOTE" | "ON_SITE" | "BOTH";
 
-export default function ReviewForm({ workRecordId }: { workRecordId: string }) {
+export default function ReviewForm({
+  workRecordId,
+  reviewPolicy = "BOTH",
+}: {
+  workRecordId: string;
+  reviewPolicy?: Policy;
+}) {
   const router = useRouter();
-  const [mode, setMode] = useState<Mode>("REMOTE");
+  // ถ้างานบังคับตรวจที่จุด → เริ่มที่โหมด ON_SITE, ไม่งั้นเริ่มระยะไกล
+  const [mode, setMode] = useState<Mode>(
+    reviewPolicy === "ON_SITE" ? "ON_SITE" : "REMOTE"
+  );
   const [comment, setComment] = useState("");
+  const [failMode, setFailMode] = useState(false); // เปิดช่องระบุรายละเอียดเมื่อกดไม่ผ่าน
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
   // สำหรับโหมดไปจุดจริง
   const [token, setToken] = useState<string | null>(null);
-  const [gps, setGps] = useState<GpsFix | null>(null);
   const [photo, setPhoto] = useState<File | null>(null);
 
-  const onSiteReady = !!token && !!gps && !!photo;
+  const onSiteReady = !!token && !!photo;
 
   async function reviewRemote(result: "PASS" | "FAIL") {
     setError("");
@@ -68,9 +77,6 @@ export default function ReviewForm({ workRecordId }: { workRecordId: string }) {
       fd.set("token", token!);
       fd.set("result", result);
       fd.set("comment", comment);
-      fd.set("lat", String(gps!.lat));
-      fd.set("lng", String(gps!.lng));
-      fd.set("accuracy", String(gps!.accuracy));
       fd.set("photo", photo!);
 
       const res = await fetch("/api/review/onsite", { method: "POST", body: fd });
@@ -92,77 +98,120 @@ export default function ReviewForm({ workRecordId }: { workRecordId: string }) {
     <div className="card p-4 space-y-3">
       <div className="font-semibold">ผลการตรวจ</div>
 
-      {/* เลือกโหมดการตรวจ */}
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={() => setMode("REMOTE")}
-          className={`btn ${mode === "REMOTE" ? "btn-primary" : "btn-ghost"} text-sm`}
-        >
-          ดูรูประยะไกล
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode("ON_SITE")}
-          className={`btn ${mode === "ON_SITE" ? "btn-primary" : "btn-ghost"} text-sm`}
-        >
-          ไปตรวจที่จุด
-        </button>
-      </div>
+      {/* เลือกโหมดการตรวจ — แสดงให้เลือกเฉพาะงานที่อนุญาตทั้งสองแบบ */}
+      {reviewPolicy === "BOTH" ? (
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setMode("REMOTE")}
+            className={`btn ${mode === "REMOTE" ? "btn-primary" : "btn-ghost"} text-sm`}
+          >
+            ดูรูประยะไกล
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("ON_SITE")}
+            className={`btn ${mode === "ON_SITE" ? "btn-primary" : "btn-ghost"} text-sm`}
+          >
+            ไปตรวจที่จุด
+          </button>
+        </div>
+      ) : (
+        <div className="rounded-lg bg-gray-50 border border-gray-200 px-3 py-2 text-sm text-gray-600">
+          งานนี้กำหนดให้ตรวจแบบ{" "}
+          <span className="font-medium text-gray-800">
+            {reviewPolicy === "ON_SITE" ? "ไปตรวจที่จุด" : "ดูรูประยะไกล"}
+          </span>{" "}
+          เท่านั้น
+        </div>
+      )}
 
       {mode === "ON_SITE" && (
         <div className="space-y-3 border-t pt-3">
           <p className="text-sm text-gray-500">
-            ยืนยันว่าผู้ตรวจอยู่ที่จุดจริง — สแกน QR + GPS + ถ่ายรูป
+            ยืนยันว่าผู้ตรวจอยู่ที่จุดจริง — สแกน QR + ถ่ายรูป
           </p>
           <div>
             <div className="text-sm font-medium mb-1">1. สแกน QR ที่จุด</div>
             <QrScanner onResult={setToken} done={!!token} />
           </div>
           <div>
-            <div className="text-sm font-medium mb-1">2. ยืนยันตำแหน่ง (GPS)</div>
-            <GpsButton onResult={setGps} value={gps} />
-          </div>
-          <div>
-            <div className="text-sm font-medium mb-1">3. ถ่ายรูปจากจุดตรวจ</div>
+            <div className="text-sm font-medium mb-1">2. ถ่ายรูปจากจุดตรวจ</div>
             <PhotoInput label="" onChange={setPhoto} />
           </div>
         </div>
       )}
 
-      <textarea
-        className="input"
-        rows={2}
-        value={comment}
-        onChange={(e) => setComment(e.target.value)}
-        placeholder="หมายเหตุ (ถ้าไม่ผ่าน ควรระบุเหตุผล)"
-      />
-
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      <div className="grid grid-cols-2 gap-3">
-        <button
-          className="btn-danger"
-          disabled={submitting || (mode === "ON_SITE" && !onSiteReady)}
-          onClick={() =>
-            mode === "ON_SITE" ? reviewOnSite("FAIL") : reviewRemote("FAIL")
-          }
-        >
-          ไม่ผ่าน
-        </button>
-        <button
-          className="btn-success"
-          disabled={submitting || (mode === "ON_SITE" && !onSiteReady)}
-          onClick={() =>
-            mode === "ON_SITE" ? reviewOnSite("PASS") : reviewRemote("PASS")
-          }
-        >
-          ผ่าน
-        </button>
-      </div>
+      {!failMode ? (
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            className="btn-danger"
+            disabled={submitting || (mode === "ON_SITE" && !onSiteReady)}
+            onClick={() => {
+              setError("");
+              setFailMode(true);
+            }}
+          >
+            ไม่ผ่าน
+          </button>
+          <button
+            className="btn-success"
+            disabled={submitting || (mode === "ON_SITE" && !onSiteReady)}
+            onClick={() =>
+              mode === "ON_SITE" ? reviewOnSite("PASS") : reviewRemote("PASS")
+            }
+          >
+            ผ่าน
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-2 border-t pt-3">
+          <div className="text-sm font-medium text-rose-700">
+            ระบุรายละเอียดที่ไม่ผ่าน (แจ้งกลับให้พนักงาน)
+          </div>
+          <textarea
+            className="input"
+            rows={3}
+            autoFocus
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            placeholder="เช่น พื้นยังไม่สะอาด / ถังขยะยังไม่ได้เท / กระจกมีคราบ"
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              className="btn-ghost"
+              disabled={submitting}
+              onClick={() => {
+                setFailMode(false);
+                setComment("");
+                setError("");
+              }}
+            >
+              ยกเลิก
+            </button>
+            <button
+              type="button"
+              className="btn-danger"
+              disabled={submitting || (mode === "ON_SITE" && !onSiteReady)}
+              onClick={() => {
+                if (!comment.trim()) {
+                  setError("กรุณาระบุรายละเอียดที่ไม่ผ่าน");
+                  return;
+                }
+                mode === "ON_SITE" ? reviewOnSite("FAIL") : reviewRemote("FAIL");
+              }}
+            >
+              ยืนยันไม่ผ่าน
+            </button>
+          </div>
+        </div>
+      )}
       {mode === "ON_SITE" && !onSiteReady && (
         <p className="text-xs text-gray-500 text-center">
-          กรุณาสแกน QR + GPS + ถ่ายรูป ก่อนกดผ่าน/ไม่ผ่าน
+          กรุณาสแกน QR + ถ่ายรูป ก่อนกดผ่าน/ไม่ผ่าน
         </p>
       )}
     </div>
