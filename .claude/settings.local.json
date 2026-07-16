@@ -8,7 +8,8 @@
       "PowerShell(docker compose build app 2>&1)",
       "PowerShell(node --version)",
       "PowerShell(npm --version)",
-      "PowerShell(winget install OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements --silent)"
+      "PowerShell(winget install OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements --silent)",
+      "PowerShell(docker compose logs app --tail 5)"
     ]
   }
 }

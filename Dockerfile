@@ -24,4 +24,4 @@ EXPOSE 3000
 
 # ตอน start: สร้าง/อัปเดต schema ในฐานข้อมูล (db push), seed ข้อมูลเริ่มต้น, แล้วรันแอป
 # ใช้ db push เพราะเป็นโปรเจคเริ่มต้นที่ยังไม่มีไฟล์ migration (เปลี่ยนเป็น migrate deploy ได้ภายหลัง)
-CMD ["sh", "-c", "npx prisma db push --skip-generate && npm run seed && npm run start"]
+CMD ["sh", "-c", "npx prisma db push --skip-generate --accept-data-loss && npm run seed && npm run start"]

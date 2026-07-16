@@ -1,20 +1,28 @@
 import Link from "next/link";
 import QRCode from "qrcode";
 import { prisma } from "@/lib/db";
-import LocationPicker from "@/components/LocationPicker";
+import { currentUser } from "@/lib/session";
 import CheckpointActions from "@/components/CheckpointActions";
-import { createCheckpoint } from "../actions";
+import CheckpointDepartmentSelect from "@/components/CheckpointDepartmentSelect";
+import CheckpointCreateForm from "@/components/CheckpointCreateForm";
+import CheckpointPhotosManager from "@/components/CheckpointPhotosManager";
 
 export const dynamic = "force-dynamic";
 
 export default async function CheckpointsPage() {
-  const [sites, checkpoints] = await Promise.all([
+  const [sites, departments, checkpoints, me] = await Promise.all([
     prisma.site.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
+    prisma.department.findMany({
+      where: { active: true },
+      orderBy: { name: "asc" },
+    }),
     prisma.checkpoint.findMany({
-      include: { site: true },
+      include: { site: true, department: true },
       orderBy: { createdAt: "asc" },
     }),
+    currentUser(),
   ]);
+  const canDelete = me?.role === "ADMIN";
 
   const qrMap = new Map<string, string>();
   for (const cp of checkpoints) {
@@ -30,33 +38,10 @@ export default async function CheckpointsPage() {
           กรุณาเพิ่ม “สถานที่” ก่อน จึงจะสร้างจุดเช็คอินได้
         </div>
       ) : (
-        <form action={createCheckpoint} className="card p-4 space-y-3">
-          <div className="font-semibold">เพิ่มจุดเช็คอินใหม่</div>
-          <div className="grid sm:grid-cols-2 gap-3">
-            <div>
-              <label className="label">สถานที่</label>
-              <select name="siteId" className="input" required>
-                {sites.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="label">ชื่อจุด</label>
-              <input name="name" className="input" required placeholder="เช่น ห้องน้ำชั้น 1" />
-            </div>
-            <div>
-              <label className="label">รายละเอียดงาน</label>
-              <input name="description" className="input" />
-            </div>
-          </div>
-
-          <LocationPicker />
-
-          <button className="btn-primary">เพิ่มจุดเช็คอิน</button>
-        </form>
+        <CheckpointCreateForm
+          sites={sites.map((s) => ({ id: s.id, name: s.name }))}
+          departments={departments.map((d) => ({ id: d.id, name: d.name }))}
+        />
       )}
 
       <div className="grid sm:grid-cols-2 gap-3">
@@ -72,10 +57,15 @@ export default async function CheckpointsPage() {
                 )}
               </div>
               <div className="text-sm text-gray-500">{cp.site.name}</div>
-              <div className="text-xs text-gray-400 mt-1">
-                {cp.latitude.toFixed(5)}, {cp.longitude.toFixed(5)} · รัศมี{" "}
-                {cp.radiusMeters} ม.
-              </div>
+              <CheckpointDepartmentSelect
+                checkpointId={cp.id}
+                departmentId={cp.departmentId}
+                departments={departments}
+              />
+              <CheckpointPhotosManager
+                checkpointId={cp.id}
+                photoPaths={cp.photoPaths}
+              />
               <div className="mt-2">
                 <Link
                   href={`/admin/checkpoints/${cp.id}/qr`}
@@ -84,7 +74,12 @@ export default async function CheckpointsPage() {
                   พิมพ์ QR
                 </Link>
               </div>
-              <CheckpointActions id={cp.id} name={cp.name} active={cp.active} />
+              <CheckpointActions
+                id={cp.id}
+                name={cp.name}
+                active={cp.active}
+                canDelete={canDelete}
+              />
             </div>
           </div>
         ))}

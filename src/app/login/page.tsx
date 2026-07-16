@@ -1,6 +1,5 @@
 import { Suspense } from "react";
-import Link from "next/link";
-import LoginForm from "@/components/LoginForm";
+import LoginRolePicker from "@/components/LoginRolePicker";
 
 export default function LoginPage() {
   return (
@@ -13,19 +12,12 @@ export default function LoginPage() {
             </svg>
           </div>
           <h1 className="text-2xl font-bold text-gray-900">ระบบตรวจงาน</h1>
-          <p className="text-sm text-gray-500 mt-0.5">แม่บ้าน / รปภ.</p>
+          <p className="text-sm text-gray-500 mt-0.5">เลือกบทบาทเพื่อเข้าสู่ระบบ</p>
         </div>
 
         <Suspense fallback={<div className="text-center text-gray-400">กำลังโหลด…</div>}>
-          <LoginForm />
+          <LoginRolePicker />
         </Suspense>
-
-        <p className="text-center text-sm text-gray-500 mt-6">
-          ยังไม่มีบัญชี?{" "}
-          <Link href="/register" className="text-brand-dark font-semibold">
-            สมัครสมาชิก
-          </Link>
-        </p>
       </div>
     </div>
   );

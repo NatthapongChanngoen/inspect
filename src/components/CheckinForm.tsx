@@ -1,27 +1,40 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import QrScanner from "./QrScanner";
-import GpsButton, { type GpsFix } from "./GpsButton";
 import PhotoInput from "./PhotoInput";
 
-export default function CheckinForm({ checkpointId }: { checkpointId: string }) {
+export default function CheckinForm({
+  checkpointId,
+}: {
+  checkpointId: string;
+}) {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
-  const [gps, setGps] = useState<GpsFix | null>(null);
+  const [verifyPhoto, setVerifyPhoto] = useState<File | null>(null);
   const [before, setBefore] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  // ขั้นตอน: สแกน QR → ถ่ายรูปยืนยันจุด → ถ่ายรูปก่อนเริ่มงาน (แยกหน้า)
+  const [step, setStep] = useState<"scan" | "verify" | "before">("scan");
 
-  const ready = !!token && !!gps && !!before;
+  // ตรวจว่ากำลังเปิดผ่านแอป LINE หรือไม่ (จาก user-agent) — บังคับเฉพาะตอนสแกน QR
+  const [liffChecked, setLiffChecked] = useState(false);
+  const [inLiff, setInLiff] = useState(false);
+
+  useEffect(() => {
+    setInLiff(/Line\//i.test(navigator.userAgent));
+    setLiffChecked(true);
+  }, []);
+
+  const ready = inLiff && !!token && !!verifyPhoto && !!before;
 
   async function submit() {
-    if (!ready) return;
+    if (!ready || !token || !verifyPhoto || !before) return;
     setError("");
     setSubmitting(true);
     try {
-      // ขอรหัสเซสชันใหม่ (อายุสั้น ใช้ครั้งเดียว) ก่อนส่ง
       const sRes = await fetch("/api/checkin/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -37,21 +50,13 @@ export default function CheckinForm({ checkpointId }: { checkpointId: string }) 
       const fd = new FormData();
       fd.set("checkpointId", checkpointId);
       fd.set("nonce", sData.nonce);
-      fd.set("token", token!);
-      fd.set("lat", String(gps!.lat));
-      fd.set("lng", String(gps!.lng));
-      fd.set("accuracy", String(gps!.accuracy));
-      // หลักฐาน GPS ดิบ ไว้ตรวจ fake GPS ฝั่ง server
-      fd.set("gpsTimestamp", String(gps!.timestamp));
-      if (gps!.altitude != null) fd.set("altitude", String(gps!.altitude));
-      if (gps!.speed != null) fd.set("speed", String(gps!.speed));
-      if (gps!.heading != null) fd.set("heading", String(gps!.heading));
-      fd.set("before", before!);
+      fd.set("token", token);
+      fd.set("verifyPhoto", verifyPhoto);
+      fd.set("before", before);
 
       const res = await fetch("/api/checkin", { method: "POST", body: fd });
       const data = await res.json();
       if (!res.ok) {
-        // ถ้าเคยเช็คอินแล้ววันนี้ ให้พาไปงานเดิม
         if (res.status === 409 && data.id) {
           router.push(`/staff/work/${data.id}`);
           return;
@@ -69,36 +74,94 @@ export default function CheckinForm({ checkpointId }: { checkpointId: string }) 
 
   return (
     <div className="space-y-4">
-      <div className="card p-4">
-        <div className="font-semibold mb-2">1. สแกน QR ที่จุดทำงาน</div>
-        <QrScanner onResult={setToken} done={!!token} />
-      </div>
-
-      <div className="card p-4">
-        <div className="font-semibold mb-2">2. ยืนยันตำแหน่ง (GPS)</div>
-        <GpsButton onResult={setGps} value={gps} />
-      </div>
-
-      <div className="card p-4">
-        <div className="font-semibold mb-2">3. ถ่ายรูปก่อนทำงาน</div>
-        <PhotoInput label="" onChange={setBefore} />
-      </div>
-
-      {error && (
-        <p className="text-sm text-red-600 bg-red-50 rounded-lg p-3">{error}</p>
+      {step === "scan" && (
+        <div className="card p-4">
+          <div className="font-semibold mb-2">สแกน QR ที่จุดทำงาน</div>
+          {!liffChecked ? (
+            <p className="text-sm text-gray-400">กำลังตรวจสอบ…</p>
+          ) : !inLiff ? (
+            <div className="flex items-start gap-2 text-amber-800 bg-amber-50 rounded-lg p-3 text-sm">
+              <span>📱</span>
+              <span>
+                สแกน QR ได้เฉพาะเมื่อเปิดหน้านี้ผ่าน<b>แอป LINE</b> เท่านั้น —
+                กรุณากดปุ่ม “เริ่มงาน” จาก LINE OA ของบริษัท
+              </span>
+            </div>
+          ) : (
+            <QrScanner
+              onResult={(t) => {
+                setToken(t);
+                setStep("verify");
+              }}
+              done={!!token}
+            />
+          )}
+        </div>
       )}
 
-      <button
-        className="btn-primary w-full"
-        disabled={!ready || submitting}
-        onClick={submit}
-      >
-        {submitting ? "กำลังเช็คอิน…" : "เช็คอินและเริ่มงาน"}
-      </button>
-      {!ready && (
-        <p className="text-xs text-gray-500 text-center">
-          กรุณาทำครบทั้ง 3 ขั้นตอนก่อนเช็คอิน
-        </p>
+      {step === "verify" && (
+        <div className="space-y-4">
+          <button
+            type="button"
+            className="text-sm text-gray-500"
+            onClick={() => {
+              setStep("scan");
+              setToken(null);
+              setVerifyPhoto(null);
+              setBefore(null);
+            }}
+          >
+            ← สแกน QR ใหม่
+          </button>
+
+          <div className="card p-4">
+            <div className="font-semibold mb-2">1. ถ่ายรูปยืนยันที่จุดทำงาน</div>
+            <p className="text-sm text-gray-500 mb-2">
+              ถ่ายรูปเป็นหลักฐานว่าอยู่ที่จุดจริง (ผู้ตรวจจะเห็นรูปนี้)
+            </p>
+            <PhotoInput label="" onChange={setVerifyPhoto} />
+          </div>
+
+          <button
+            className="btn-primary w-full"
+            disabled={!verifyPhoto}
+            onClick={() => setStep("before")}
+          >
+            ถัดไป
+          </button>
+        </div>
+      )}
+
+      {step === "before" && (
+        <div className="space-y-4">
+          <button
+            type="button"
+            className="text-sm text-gray-500"
+            onClick={() => setStep("verify")}
+          >
+            ← ย้อนกลับ
+          </button>
+
+          <div className="card p-4">
+            <div className="font-semibold mb-2">2. ถ่ายรูปก่อนเริ่มงาน</div>
+            <p className="text-sm text-gray-500 mb-2">
+              ถ่ายสภาพจุดก่อนลงมือทำงาน
+            </p>
+            <PhotoInput label="" onChange={setBefore} />
+          </div>
+
+          {error && (
+            <p className="text-sm text-red-600 bg-red-50 rounded-lg p-3">{error}</p>
+          )}
+
+          <button
+            className="btn-primary w-full"
+            disabled={!ready || submitting}
+            onClick={submit}
+          >
+            {submitting ? "กำลังเช็คอิน…" : "เช็คอินและเริ่มงาน"}
+          </button>
+        </div>
       )}
     </div>
   );

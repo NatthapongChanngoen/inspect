@@ -2,12 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { currentUser } from "@/lib/session";
 import { saveUpload } from "@/lib/storage";
-import {
-  consumeSession,
-  validateProximity,
-  validateGpsFreshness,
-  assessSuspicion,
-} from "@/lib/verify";
+import { consumeSession } from "@/lib/verify";
 
 export async function POST(req: NextRequest) {
   const user = await currentUser();
@@ -19,22 +14,8 @@ export async function POST(req: NextRequest) {
   const checkpointId = String(form.get("checkpointId") || "");
   const nonce = String(form.get("nonce") || "");
   const token = String(form.get("token") || "");
-  const lat = parseFloat(String(form.get("lat")));
-  const lng = parseFloat(String(form.get("lng")));
-  const accuracy = parseFloat(String(form.get("accuracy") || "0"));
+  const verifyPhoto = form.get("verifyPhoto");
   const before = form.get("before");
-
-  // หลักฐาน GPS ดิบ (อาจไม่มีบางค่าถ้าอุปกรณ์ไม่ส่ง)
-  const num = (k: string): number | null => {
-    const v = form.get(k);
-    if (v == null || v === "") return null;
-    const n = parseFloat(String(v));
-    return Number.isFinite(n) ? n : null;
-  };
-  const gpsTimestamp = num("gpsTimestamp");
-  const altitude = num("altitude");
-  const speed = num("speed");
-  const heading = num("heading");
 
   // บริบท request ไว้ตรวจย้อนหลัง
   const ipAddress =
@@ -46,11 +27,17 @@ export async function POST(req: NextRequest) {
   if (!checkpointId || !token) {
     return NextResponse.json({ error: "ข้อมูลไม่ครบ" }, { status: 400 });
   }
-  if (Number.isNaN(lat) || Number.isNaN(lng)) {
-    return NextResponse.json({ error: "ไม่พบพิกัด GPS" }, { status: 400 });
+  if (!(verifyPhoto instanceof File)) {
+    return NextResponse.json(
+      { error: "กรุณาถ่ายรูปยืนยันที่จุด" },
+      { status: 400 }
+    );
   }
   if (!(before instanceof File)) {
-    return NextResponse.json({ error: "กรุณาแนบรูปก่อนทำงาน" }, { status: 400 });
+    return NextResponse.json(
+      { error: "กรุณาถ่ายรูปก่อนเริ่มงาน" },
+      { status: 400 }
+    );
   }
 
   const checkpoint = await prisma.checkpoint.findUnique({
@@ -74,28 +61,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 3) ตรวจ GPS อยู่ในรัศมี + ความแม่นยำพอ
-  const prox = validateProximity(checkpoint, lat, lng, accuracy);
-  if (!prox.ok) {
-    return NextResponse.json({ error: prox.reason }, { status: 400 });
-  }
-
-  // 3.1) ตรวจว่าพิกัดสดพอ (กันการส่งพิกัดแคชเก่า)
-  const fresh = validateGpsFreshness(gpsTimestamp ?? NaN);
-  if (!fresh.ok) {
-    return NextResponse.json({ error: fresh.reason }, { status: 400 });
-  }
-
-  // 3.2) ประเมินสัญญาณน่าสงสัย (fake GPS) — ไม่บล็อก แค่ตั้งธงให้ผู้ตรวจดู
-  const suspiciousFlags = assessSuspicion({
-    accuracy,
-    altitude,
-    speed,
-    heading,
-    gpsTimestamp,
-  });
-
-  // 4) กันเช็คอินซ้ำในวันเดียวกัน (ยอมให้ทำใหม่เฉพาะถ้าของเดิมถูกตีกลับ REJECTED)
+  // 3) กันเช็คอินซ้ำในวันเดียวกัน (ยอมให้ทำใหม่เฉพาะถ้าของเดิมถูกตีกลับ REJECTED)
   const start = new Date();
   start.setHours(0, 0, 0, 0);
   const end = new Date(start);
@@ -125,6 +91,57 @@ export async function POST(req: NextRequest) {
     },
   });
 
+  // เวลาเริ่ม + วิธีตรวจ (จาก assignment วันนี้ หรือ งานประจำที่ตรงวัน)
+  let expectedStartTime: string | null = assignment?.startTime ?? null;
+  let reviewPolicy: "REMOTE" | "ON_SITE" | "BOTH" =
+    assignment?.reviewPolicy ?? "BOTH";
+  if (!expectedStartTime || !assignment) {
+    const sched = await prisma.schedule.findFirst({
+      where: {
+        userId: user.id,
+        checkpointId,
+        active: true,
+        daysOfWeek: { has: new Date().getDay() },
+      },
+      select: {
+        startTime: true,
+        reviewPolicy: true,
+      },
+    });
+    if (!expectedStartTime) expectedStartTime = sched?.startTime ?? null;
+    if (!assignment && sched?.reviewPolicy) reviewPolicy = sched.reviewPolicy;
+  }
+
+  // นับสาย: ใช้ฐานเวลา = เวลาเริ่มที่กำหนด หรือ เวลาที่งานก่อนหน้า "เสร็จ" (อันไหนช้ากว่า)
+  // → ทำหลายจุดต่อเนื่องจะไม่ถูกนับสายจากเวลาเริ่มของจุดแรก (คนเดียวทำหลายจุดพร้อมกันไม่ได้)
+  // null = ไม่ได้กำหนดเวลาเริ่ม → วัดสายไม่ได้
+  let lateMinutes: number | null = null;
+  let lateBaseAt: Date | null = null;
+  if (expectedStartTime && /^([01]?\d|2[0-3]):[0-5]\d$/.test(expectedStartTime)) {
+    const [hh, mm] = expectedStartTime.split(":").map(Number);
+    const exp = new Date(start);
+    exp.setHours(hh, mm, 0, 0);
+
+    // งานก่อนหน้าของคนนี้ที่ "ส่งงานแล้ว" ในวันเดียวกัน (ยังไม่ส่ง = ยังไม่นับว่าเสร็จ)
+    const prevDone = await prisma.workRecord.findFirst({
+      where: {
+        userId: user.id,
+        checkInAt: { gte: start, lt: end },
+        submittedAt: { not: null },
+      },
+      orderBy: { submittedAt: "desc" },
+      select: { submittedAt: true },
+    });
+
+    const prev = prevDone?.submittedAt ?? null;
+    lateBaseAt = prev && prev.getTime() > exp.getTime() ? prev : exp;
+    lateMinutes = Math.max(
+      0,
+      Math.round((Date.now() - lateBaseAt.getTime()) / 60000)
+    );
+  }
+
+  const checkinPath = await saveUpload(verifyPhoto, "checkin");
   const beforePath = await saveUpload(before, "before");
 
   const record = await prisma.workRecord.create({
@@ -132,21 +149,15 @@ export async function POST(req: NextRequest) {
       checkpointId,
       userId: user.id,
       assignmentId: assignment?.id,
+      expectedStartTime,
+      lateMinutes,
+      lateBaseAt,
+      reviewPolicy,
       status: "IN_PROGRESS",
-      checkInLat: lat,
-      checkInLng: lng,
-      checkInAccuracy: Number.isFinite(accuracy) ? accuracy : null,
-      distanceMeters: prox.distance,
-      gpsTimestamp: gpsTimestamp ? new Date(gpsTimestamp) : null,
-      gpsAltitude: altitude,
-      gpsSpeed: speed,
-      gpsHeading: heading,
       ipAddress,
       userAgent,
-      suspicious: suspiciousFlags.length > 0,
-      suspiciousFlags,
       verifiedByQr: true,
-      verifiedByGps: true,
+      checkinPhotoPath: checkinPath,
       beforePhotoPath: beforePath,
     },
   });

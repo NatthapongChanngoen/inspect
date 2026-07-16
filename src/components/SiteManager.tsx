@@ -12,7 +12,15 @@ export type SiteItem = {
   checkpointCount: number;
 };
 
-export default function SiteManager({ sites }: { sites: SiteItem[] }) {
+export default function SiteManager({
+  sites,
+  canDelete = true,
+}: {
+  sites: SiteItem[];
+  // ผู้สั่งงานแก้สถานที่ได้ แต่ลบไม่ได้
+  // (ลบสถานที่ = จุดเช็คอิน + งานมอบหมาย + งานประจำ + ใบแจ้งซ่อม + ข้อเสนอ หายทั้งโซ่)
+  canDelete?: boolean;
+}) {
   const router = useRouter();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
@@ -143,13 +151,15 @@ export default function SiteManager({ sites }: { sites: SiteItem[] }) {
                 >
                   {s.active ? "ปิดใช้งาน" : "เปิดใช้งาน"}
                 </button>
-                <button
-                  className="text-red-600 text-sm"
-                  disabled={pending}
-                  onClick={() => remove(s)}
-                >
-                  ลบ
-                </button>
+                {canDelete && (
+                  <button
+                    className="text-red-600 text-sm"
+                    disabled={pending}
+                    onClick={() => remove(s)}
+                  >
+                    ลบ
+                  </button>
+                )}
               </div>
             </div>
           )

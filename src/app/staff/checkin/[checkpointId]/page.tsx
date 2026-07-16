@@ -13,7 +13,7 @@ export default async function CheckinPage({
   const { checkpointId } = await params;
   const checkpoint = await prisma.checkpoint.findUnique({
     where: { id: checkpointId },
-    include: { site: true },
+    include: { site: true, department: true },
   });
 
   if (!checkpoint || !checkpoint.active) notFound();
@@ -25,7 +25,10 @@ export default async function CheckinPage({
       </Link>
       <div>
         <h1 className="text-xl font-bold">{checkpoint.name}</h1>
-        <p className="text-gray-500">{checkpoint.site.name}</p>
+        <p className="text-gray-500">
+          {checkpoint.department ? `${checkpoint.department.name} · ` : ""}
+          {checkpoint.site.name}
+        </p>
         {checkpoint.description && (
           <p className="text-sm text-gray-600 mt-1">{checkpoint.description}</p>
         )}

@@ -19,7 +19,10 @@ export default async function WorkPage({
 
   const record = await prisma.workRecord.findUnique({
     where: { id },
-    include: { checkpoint: { include: { site: true } }, review: true },
+    include: {
+      checkpoint: { include: { site: true, department: true } },
+      review: true,
+    },
   });
 
   if (!record) notFound();
@@ -34,7 +37,12 @@ export default async function WorkPage({
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-xl font-bold">{record.checkpoint.name}</h1>
-          <p className="text-gray-500">{record.checkpoint.site.name}</p>
+          <p className="text-gray-500">
+            {record.checkpoint.department
+              ? `${record.checkpoint.department.name} · `
+              : ""}
+            {record.checkpoint.site.name}
+          </p>
         </div>
         <StatusBadge status={record.status} />
       </div>
@@ -47,21 +55,19 @@ export default async function WorkPage({
         )}
       </div>
 
-      <div className="card p-4">
-        <div className="font-semibold mb-2">รูปก่อนทำงาน</div>
-        {record.beforePhotoPath ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={`/api/files/${record.beforePhotoPath}`}
-            alt="ก่อนทำงาน"
-            className="w-full rounded-lg border max-h-72 object-contain bg-gray-50"
-          />
-        ) : (
-          <p className="text-gray-400 text-sm">ไม่มีรูป</p>
-        )}
-      </div>
+      {record.status === "RETURNED" && record.returnReason && (
+        <div className="card p-4 border-2 border-orange-300 bg-orange-50">
+          <div className="font-semibold text-orange-800">
+            🔁 งานถูกตีกลับให้แก้
+          </div>
+          <p className="text-sm text-orange-800 mt-1">{record.returnReason}</p>
+          <p className="text-xs text-orange-700 mt-1">
+            กรุณาแก้จุดที่ระบุ แล้วถ่ายรูปหลังทำงานใหม่เพื่อส่งอีกครั้ง
+          </p>
+        </div>
+      )}
 
-      {record.status === "IN_PROGRESS" ? (
+      {record.status === "IN_PROGRESS" || record.status === "RETURNED" ? (
         <SubmitForm workRecordId={record.id} />
       ) : (
         <>

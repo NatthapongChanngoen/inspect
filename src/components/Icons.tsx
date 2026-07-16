@@ -35,6 +35,29 @@ export const CheckIcon = (p: IconProps) => (
   </Svg>
 );
 
+export const WrenchIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M14.7 6.3a4 4 0 0 0-5.4 5.3L3 18l3 3 6.4-6.3a4 4 0 0 0 5.3-5.4l-2.5 2.5-2.8-2.8 2.3-2.7Z" />
+  </Svg>
+);
+
+export const ClipboardCheckIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="8" y="2" width="8" height="4" rx="1" />
+    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+    <path d="m9 14 2 2 4-4" />
+  </Svg>
+);
+
+export const ChartIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M3 3v18h18" />
+    <rect x="7" y="12" width="3" height="6" rx="0.5" />
+    <rect x="12" y="8" width="3" height="10" rx="0.5" />
+    <rect x="17" y="4" width="3" height="14" rx="0.5" />
+  </Svg>
+);
+
 export const CameraIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z" />
@@ -86,6 +109,13 @@ export const BuildingIcon = (p: IconProps) => (
   <Svg {...p}>
     <rect x="4" y="2" width="16" height="20" rx="2" />
     <path d="M9 22v-4h6v4M8 6h.01M16 6h.01M8 10h.01M16 10h.01M8 14h.01M16 14h.01" />
+  </Svg>
+);
+
+export const TagIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" />
+    <circle cx="7.5" cy="7.5" r="1" />
   </Svg>
 );
 

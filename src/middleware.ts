@@ -1,14 +1,9 @@
 import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
 import { authConfig } from "@/auth.config";
+import { canAccessAdminPath, homeFor } from "@/lib/permissions";
 
 const { auth } = NextAuth(authConfig);
-
-function homeFor(role?: string): string {
-  if (role === "ADMIN") return "/admin";
-  if (role === "INSPECTOR") return "/inspector";
-  return "/staff";
-}
 
 export default auth((req) => {
   const { nextUrl } = req;
@@ -17,16 +12,27 @@ export default auth((req) => {
   // ปล่อยผ่านเส้นทางของ Auth.js เอง
   if (path.startsWith("/api/auth")) return NextResponse.next();
 
-  // ปล่อยผ่าน API สมัครสมาชิก (สาธารณะ)
-  if (path.startsWith("/api/register")) return NextResponse.next();
+  // ปล่อยผ่าน API ผูกบัญชี LINE (สาธารณะ)
+  if (path.startsWith("/api/line")) return NextResponse.next();
+
+  // ปล่อยผ่าน API แจ้งปัญหาสาธารณะผ่าน LINE (ไม่ต้องล็อกอินแอป)
+  if (path.startsWith("/api/issues/public")) return NextResponse.next();
+
+  // ปล่อยผ่านรูปจุดสาธารณะ (ให้ LINE ดึงรูปไปแสดงในข้อความได้)
+  if (path.startsWith("/api/cp-photo")) return NextResponse.next();
 
   const isLoggedIn = !!req.auth;
   const role = req.auth?.user?.role as string | undefined;
   const isLogin = path === "/login";
-  const isRegister = path === "/register";
   const isLanding = path === "/";
-  // หน้าสาธารณะ: landing / login / สมัครสมาชิก
-  const isPublic = isLogin || isRegister || isLanding;
+  const isLine = path === "/line";
+  // ช่องทางแจ้งซ่อมสาธารณะผ่าน LINE (/line?to=report) — ต้องเข้าได้แม้ล็อกอินอยู่ (ไม่เด้ง)
+  const isReportEntry = isLine && nextUrl.searchParams.get("to") === "report";
+  // หน้าสาธารณะ: landing / login / เข้าผ่าน LINE
+  const isPublic = isLogin || isLanding || isLine;
+
+  // ช่องทางแจ้งซ่อมสาธารณะ: ปล่อยผ่านทุกกรณี (ทั้งยังไม่ล็อกอินและล็อกอินแล้ว)
+  if (isReportEntry) return NextResponse.next();
 
   if (!isLoggedIn) {
     if (isPublic) return NextResponse.next();
@@ -40,8 +46,9 @@ export default auth((req) => {
     return NextResponse.redirect(new URL(homeFor(role), nextUrl));
   }
 
-  // ควบคุมสิทธิ์ตามบทบาท
-  if (path.startsWith("/admin") && role !== "ADMIN") {
+  // ควบคุมสิทธิ์ตามบทบาท — allowlist อยู่ที่ src/lib/permissions.ts ที่เดียว
+  // (ผู้บริหาร = รายงาน · ผู้สั่งงาน = สถานที่/จุด/มอบหมายงาน · แอดมิน = ทุกหน้า)
+  if (path.startsWith("/admin") && !canAccessAdminPath(role, path)) {
     return NextResponse.redirect(new URL(homeFor(role), nextUrl));
   }
   if (path.startsWith("/inspector") && !(role === "INSPECTOR" || role === "ADMIN")) {

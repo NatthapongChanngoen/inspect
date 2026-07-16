@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { currentUser } from "@/lib/session";
 import { saveUpload } from "@/lib/storage";
-import { consumeSession, validateProximity } from "@/lib/verify";
+import { consumeSession } from "@/lib/verify";
+import { maybeNotifyReviewSummary, notifyRejected } from "@/lib/reviewNotify";
 
-// อนุมัติแบบ "ไปตรวจที่จุดจริง" — ต้องสแกน QR + GPS ในรัศมี + ถ่ายรูป
+// อนุมัติแบบ "ไปตรวจที่จุดจริง" — สแกน QR ที่จุด + ถ่ายรูปยืนยัน
 export async function POST(req: NextRequest) {
   const user = await currentUser();
   if (!user || (user.role !== "INSPECTOR" && user.role !== "ADMIN")) {
@@ -17,16 +18,10 @@ export async function POST(req: NextRequest) {
   const token = String(form.get("token") || "");
   const result = String(form.get("result") || "");
   const comment = String(form.get("comment") || "").trim();
-  const lat = parseFloat(String(form.get("lat")));
-  const lng = parseFloat(String(form.get("lng")));
-  const accuracy = parseFloat(String(form.get("accuracy") || "0"));
   const photo = form.get("photo");
 
   if (!workRecordId || !token || (result !== "PASS" && result !== "FAIL")) {
     return NextResponse.json({ error: "ข้อมูลไม่ครบ" }, { status: 400 });
-  }
-  if (Number.isNaN(lat) || Number.isNaN(lng)) {
-    return NextResponse.json({ error: "ไม่พบพิกัด GPS" }, { status: 400 });
   }
   if (!(photo instanceof File)) {
     return NextResponse.json({ error: "กรุณาแนบรูปจากจุดตรวจ" }, { status: 400 });
@@ -39,8 +34,16 @@ export async function POST(req: NextRequest) {
   if (!record) {
     return NextResponse.json({ error: "ไม่พบงานนี้" }, { status: 404 });
   }
-  if (record.status !== "SUBMITTED") {
+  if (record.status !== "SUBMITTED" && record.status !== "NOT_REVIEWED") {
     return NextResponse.json({ error: "งานนี้ตรวจแล้ว" }, { status: 400 });
+  }
+  // ผู้ตรวจทุกคนตรวจงานไหนก็ได้ (ไม่มีการระบุผู้ตรวจล่วงหน้าแล้ว)
+  // งานนี้กำหนดให้ตรวจระยะไกลเท่านั้น → ห้ามตรวจที่จุด
+  if (record.reviewPolicy === "REMOTE") {
+    return NextResponse.json(
+      { error: "งานนี้กำหนดให้ตรวจระยะไกลเท่านั้น" },
+      { status: 400 }
+    );
   }
 
   // 1) ตรวจรหัสเซสชัน (กัน replay)
@@ -62,12 +65,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 3) ตรวจ GPS อยู่ในรัศมี + ความแม่นยำพอ
-  const prox = validateProximity(record.checkpoint, lat, lng, accuracy);
-  if (!prox.ok) {
-    return NextResponse.json({ error: prox.reason }, { status: 400 });
-  }
-
   const photoPath = await saveUpload(photo, "review");
 
   await prisma.$transaction([
@@ -78,9 +75,6 @@ export async function POST(req: NextRequest) {
         result,
         comment: comment || null,
         mode: "ON_SITE",
-        inspectorLat: lat,
-        inspectorLng: lng,
-        inspectorDistanceMeters: prox.distance,
         inspectorPhotoPath: photoPath,
         reviewedAt: new Date(),
       },
@@ -90,9 +84,6 @@ export async function POST(req: NextRequest) {
         result,
         comment: comment || null,
         mode: "ON_SITE",
-        inspectorLat: lat,
-        inspectorLng: lng,
-        inspectorDistanceMeters: prox.distance,
         inspectorPhotoPath: photoPath,
       },
     }),
@@ -101,6 +92,10 @@ export async function POST(req: NextRequest) {
       data: { status: result === "PASS" ? "APPROVED" : "REJECTED" },
     }),
   ]);
+
+  // ไม่ผ่าน → แจ้งพนักงานทันทีพร้อมรายละเอียด (และกันไม่ให้ซ้ำในสรุปรวม)
+  if (result === "FAIL") await notifyRejected(workRecordId);
+  await maybeNotifyReviewSummary(workRecordId);
 
   return NextResponse.json({ ok: true });
 }

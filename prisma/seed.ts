@@ -1,4 +1,4 @@
-import { PrismaClient, Role } from "@prisma/client";
+import { PrismaClient, Role, StaffType } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
@@ -15,16 +15,26 @@ async function upsertUser(opts: {
   password: string;
   role: Role;
   phone?: string;
+  nationalId?: string;
+  staffType?: StaffType;
 }) {
   const passwordHash = await bcrypt.hash(opts.password, 10);
   return prisma.user.upsert({
     where: { username: opts.username },
-    update: { name: opts.name, role: opts.role, phone: opts.phone },
+    update: {
+      name: opts.name,
+      role: opts.role,
+      phone: opts.phone,
+      nationalId: opts.nationalId,
+      staffType: opts.staffType ?? null,
+    },
     create: {
       username: opts.username,
       name: opts.name,
       role: opts.role,
       phone: opts.phone,
+      nationalId: opts.nationalId,
+      staffType: opts.staffType ?? null,
       passwordHash,
     },
   });
@@ -48,6 +58,7 @@ async function main() {
     password: "inspect1234",
     role: Role.INSPECTOR,
     phone: "0810000001",
+    nationalId: "1100000000011",
   });
 
   const maid = await upsertUser({
@@ -56,6 +67,8 @@ async function main() {
     password: "staff1234",
     role: Role.STAFF,
     phone: "0820000001",
+    nationalId: "1100000000029",
+    staffType: StaffType.HOUSEKEEPER,
   });
 
   const guard = await upsertUser({
@@ -64,6 +77,8 @@ async function main() {
     password: "staff1234",
     role: Role.STAFF,
     phone: "0830000001",
+    nationalId: "1100000000037",
+    staffType: StaffType.SECURITY,
   });
 
   // ---- สถานที่ตัวอย่าง ----
@@ -81,11 +96,22 @@ async function main() {
       },
     }));
 
+  // ---- ฝ่ายตัวอย่าง ----
+  // หากมีอยู่แล้วไม่ต้องสร้างซ้ำ (กันข้อมูลตัวอย่างซ้ำตอน restart)
+  async function ensureDepartment(name: string) {
+    const existing = await prisma.department.findFirst({ where: { name } });
+    return existing ?? (await prisma.department.create({ data: { name } }));
+  }
+  const deptHousekeeping = await ensureDepartment("ฝ่ายแม่บ้าน");
+  const deptSecurity = await ensureDepartment("ฝ่ายรักษาความปลอดภัย");
+  await ensureDepartment("ฝ่ายอาคารสถานที่");
+
   // ---- จุดเช็คอินตัวอย่าง ----
   if ((await prisma.checkpoint.count({ where: { siteId: site.id } })) === 0) {
     const cp1 = await prisma.checkpoint.create({
       data: {
         siteId: site.id,
+        departmentId: deptHousekeeping.id,
         name: "ห้องน้ำ ชั้น 1",
         latitude: 13.7563,
         longitude: 100.5018,
@@ -97,6 +123,7 @@ async function main() {
     const cp2 = await prisma.checkpoint.create({
       data: {
         siteId: site.id,
+        departmentId: deptSecurity.id,
         name: "ป้อมยาม ทางเข้าหลัก",
         latitude: 13.7565,
         longitude: 100.5021,

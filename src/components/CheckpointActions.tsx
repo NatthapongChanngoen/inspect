@@ -11,10 +11,12 @@ export default function CheckpointActions({
   id,
   name,
   active,
+  canDelete = true,
 }: {
   id: string;
   name: string;
   active: boolean;
+  canDelete?: boolean; // ผู้สั่งงานแก้จุดได้ แต่ลบไม่ได้ (ลบจุด = งาน/ใบแจ้งซ่อมหายทั้งโซ่)
 }) {
   const router = useRouter();
   const [error, setError] = useState("");
@@ -56,13 +58,15 @@ export default function CheckpointActions({
         >
           {active ? "ปิดใช้งาน" : "เปิดใช้งาน"}
         </button>
-        <button
-          className="text-red-600 text-sm"
-          disabled={pending}
-          onClick={remove}
-        >
-          ลบ
-        </button>
+        {canDelete && (
+          <button
+            className="text-red-600 text-sm"
+            disabled={pending}
+            onClick={remove}
+          >
+            ลบ
+          </button>
+        )}
       </div>
       {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
     </div>

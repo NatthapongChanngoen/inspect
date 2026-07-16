@@ -1,5 +1,5 @@
-import Header from "@/components/Header";
 import AdminNav from "@/components/AdminNav";
+import AdminTopbar from "@/components/AdminTopbar";
 import { currentUser } from "@/lib/session";
 
 export default async function AdminLayout({
@@ -9,11 +9,13 @@ export default async function AdminLayout({
 }) {
   const user = await currentUser();
   return (
-    <div className="min-h-screen flex flex-col">
-      <Header name={user?.name} role={user?.role ?? "ADMIN"} homeHref="/admin" />
-      <div className="w-full max-w-6xl mx-auto md:flex flex-1">
-        <AdminNav />
-        <main className="flex-1 min-w-0 p-4">{children}</main>
+    <div className="md:flex min-h-screen">
+      <AdminNav role={user?.role ?? "ADMIN"} />
+      <div className="flex-1 min-w-0 flex flex-col">
+        <AdminTopbar name={user?.name} role={user?.role ?? "ADMIN"} />
+        <main className="flex-1 min-w-0 p-4 md:p-6 max-w-6xl w-full">
+          {children}
+        </main>
       </div>
     </div>
   );

@@ -15,6 +15,8 @@ export default function PhotoInput({
   const [active, setActive] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [error, setError] = useState("");
+  // กล้องหน้า (user) / หลัง (environment) — เริ่มที่กล้องหลัง
+  const [facing, setFacing] = useState<"environment" | "user">("environment");
 
   function stopCamera() {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -22,7 +24,7 @@ export default function PhotoInput({
     setActive(false);
   }
 
-  async function startCamera() {
+  async function startCamera(f: "environment" | "user" = facing) {
     setError("");
     if (!navigator.mediaDevices?.getUserMedia) {
       setError("อุปกรณ์/เบราว์เซอร์นี้ไม่รองรับกล้อง");
@@ -30,14 +32,23 @@ export default function PhotoInput({
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } },
+        video: { facingMode: { ideal: f } },
         audio: false,
       });
       streamRef.current = stream;
+      setFacing(f);
       setActive(true);
     } catch {
       setError("ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตการใช้กล้อง");
     }
+  }
+
+  // สลับกล้องหน้า/หลัง — ปิดสตรีมเดิมแล้วเปิดใหม่
+  function switchCamera() {
+    const next = facing === "environment" ? "user" : "environment";
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    startCamera(next);
   }
 
   function capture() {
@@ -70,13 +81,13 @@ export default function PhotoInput({
     startCamera();
   }
 
-  // ผูกสตรีมเข้ากับ <video> เมื่อกล้องเปิด
+  // ผูกสตรีมเข้ากับ <video> เมื่อกล้องเปิด/สลับกล้อง (รวม facing กันจอดำตอนสลับ)
   useEffect(() => {
     if (active && videoRef.current && streamRef.current) {
       videoRef.current.srcObject = streamRef.current;
       videoRef.current.play().catch(() => {});
     }
-  }, [active]);
+  }, [active, facing]);
 
   // ปิดกล้องเมื่อออกจากหน้า
   useEffect(() => {
@@ -111,6 +122,14 @@ export default function PhotoInput({
               muted
               playsInline
             />
+            <button
+              type="button"
+              onClick={switchCamera}
+              className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-full bg-black/50 text-white text-xs px-3 py-1.5 backdrop-blur"
+              aria-label="สลับกล้องหน้า/หลัง"
+            >
+              🔄 {facing === "environment" ? "กล้องหลัง" : "กล้องหน้า"}
+            </button>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <button type="button" className="btn-ghost" onClick={stopCamera}>
@@ -124,7 +143,7 @@ export default function PhotoInput({
       ) : (
         <button
           type="button"
-          onClick={startCamera}
+          onClick={() => startCamera()}
           className="flex flex-col items-center justify-center gap-2 w-full border-2 border-dashed border-gray-300 rounded-lg p-8 hover:bg-gray-50 text-gray-500"
         >
           <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

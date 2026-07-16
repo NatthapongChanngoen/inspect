@@ -1,9 +1,10 @@
 import { auth } from "@/auth";
+import type { AppRole } from "@/lib/permissions";
 
 export type SessionUser = {
   id: string;
   name?: string | null;
-  role: "STAFF" | "INSPECTOR" | "ADMIN";
+  role: AppRole;
 };
 
 export async function currentUser(): Promise<SessionUser | null> {
